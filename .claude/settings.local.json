@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(rm -f tailwind.config.ts)",
+      "Bash(npx vite *)",
+      "Bash(grep -v -E \"npm notice|^$\")",
+      "Bash(\"c:/Users/sidhi/OneDrive/Desktop/Debt Tracker/Frontend/node_modules/.bin/esbuild\" trace.ts --bundle --platform=node --outfile=trace.cjs)",
+      "Bash(node trace.cjs)",
+      "Bash(npx --prefix \"c:/Users/sidhi/OneDrive/Desktop/Debt Tracker/Frontend\" esbuild trace.ts --bundle --platform=node --outfile=trace.cjs)",
+      "Bash(node -e \"for \\(const c of ['USD','EUR','GBP','TND','CAD','AED']\\) console.log\\(c, '->', new Intl.NumberFormat\\('en-US',{style:'currency',currency:c}\\).format\\(1234.5\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(grep -v -E \"npm notice|^$|chunks are larger|Using dynamic|build.rolldownOptions|Adjust chunk|vite-reporter\")",
+      "Bash(./mvnw -q -o compile)",
+      "Bash(./mvnw -q compile)",
+      "Bash(java -version)",
+      "Bash(./mvnw -q -o help:evaluate -Dexpression=lombok.version -DforceStdout)",
+      "Bash(./mvnw -o compile)"
+    ]
+  }
+}
