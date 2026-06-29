@@ -18,6 +18,7 @@ import ComingSoon from './pages/ComingSoon'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
+import OAuth2CallbackPage from './pages/OAuth2CallbackPage'
 
 /** Gate protected routes: no token in localStorage → send to login. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -42,6 +43,8 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         {/* Email verification link target — must be reachable without a token. */}
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        {/* OAuth2 redirect target — must be reachable without a token. */}
+        <Route path="/oauth2/callback" element={<OAuth2CallbackPage />} />
         <Route
           element={
             <RequireAuth>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import AuthLayout from '@/components/AuthLayout'
+import SocialAuthButtons from '@/components/SocialAuthButtons'
 
 const REGISTER_URL = 'http://localhost:8080/api/auth/register'
 const RESEND_URL = 'http://localhost:8080/api/auth/resend-verification'
@@ -216,6 +217,8 @@ export default function RegisterPage() {
           {loading ? 'Creating account…' : 'Create account'}
         </button>
       </form>
+
+      <SocialAuthButtons />
 
       <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Already have an account?{' '}
