@@ -3,6 +3,7 @@ package com.dhiamliki.debttracker.auth;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -20,11 +21,13 @@ import java.util.Map;
 @Component
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
-    private static final String CALLBACK_URL = "http://localhost:5173/oauth2/callback";
-
+    private final String callbackUrl;
     private final OAuth2Service oAuth2Service;
 
-    public OAuth2SuccessHandler(OAuth2Service oAuth2Service) {
+    public OAuth2SuccessHandler(
+            @Value("${app.frontend-url}") String frontendUrl,
+            OAuth2Service oAuth2Service) {
+        this.callbackUrl = frontendUrl + "/oauth2/callback";
         this.oAuth2Service = oAuth2Service;
     }
 
@@ -56,13 +59,13 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         if (email == null) {
             response.sendRedirect(
-                    CALLBACK_URL + "?error=" + "Could+not+retrieve+email+from+" + provider);
+                    callbackUrl + "?error=" + "Could+not+retrieve+email+from+" + provider);
             return;
         }
 
         String jwt = oAuth2Service.processOAuth2Login(email, name, provider);
 
-        String redirectUrl = UriComponentsBuilder.fromUriString(CALLBACK_URL)
+        String redirectUrl = UriComponentsBuilder.fromUriString(callbackUrl)
                 .queryParam("token", jwt)
                 .build()
                 .toUriString();

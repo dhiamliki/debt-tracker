@@ -83,19 +83,21 @@ public class AuthService {
             throw new BusinessException("Invalid email or password");
         }
 
-        if (!user.isVerified()) {
-            throw new BusinessException("Please verify your email before logging in");
-        }
+        // TODO: re-enable email verification check when domain is verified
+        // if (!user.isVerified()) {
+        //     throw new BusinessException("Please verify your email before logging in");
+        // }
 
-        if (user.isTwoFaEnabled()) {
-            String otp = generateOtp();
-            user.setOtpCode(otp);
-            user.setOtpExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
-            userRepository.save(user);
-
-            emailService.sendOtpEmail(user.getEmail(), otp);
-            return AuthResponse.requiresTwoFactor();
-        }
+        // TODO: re-enable 2FA when domain is verified
+        // if (user.isTwoFaEnabled()) {
+        //     String otp = generateOtp();
+        //     user.setOtpCode(otp);
+        //     user.setOtpExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
+        //     userRepository.save(user);
+        //
+        //     emailService.sendOtpEmail(user.getEmail(), otp);
+        //     return AuthResponse.requiresTwoFactor();
+        // }
 
         String jwt = jwtUtil.generateToken(user.getEmail());
         return new AuthResponse(jwt, user.getEmail());

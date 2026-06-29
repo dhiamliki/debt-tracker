@@ -1,0 +1,24 @@
+# Maven build output
+target/
+
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Env files
+.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# Docker files (no need to copy into image)
+Dockerfile
+.dockerignore

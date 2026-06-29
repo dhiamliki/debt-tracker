@@ -1,11 +1,23 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS build
-WORKDIR /workspace
-COPY pom.xml ./
-COPY src ./src
-RUN mvn -B -DskipTests package
+# syntax=docker/dockerfile:1
 
-FROM eclipse-temurin:21-jre
+# --- Stage 1: build the jar ---
+FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
-COPY --from=build /workspace/target/*.jar app.jar
+
+COPY pom.xml .
+COPY src ./src
+
+RUN mvn clean package -DskipTests
+
+# --- Stage 2: runtime ---
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+COPY --from=builder /app/target/*.jar app.jar
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

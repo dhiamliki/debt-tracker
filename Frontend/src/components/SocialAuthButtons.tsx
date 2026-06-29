@@ -1,33 +1,4 @@
-/**
- * Open the backend OAuth2 endpoint in a popup and poll for the callback URL.
- * Once Spring redirects the popup to /oauth2/callback?token=JWT, grab the token,
- * store it and send the main window to the dashboard.
- */
-const openOAuthPopup = (provider: 'google' | 'github') => {
-  const url = `http://localhost:8080/oauth2/authorize/${provider}`
-  const popup = window.open(url, 'oauth', 'width=500,height=600,scrollbars=yes')
-
-  const interval = setInterval(() => {
-    try {
-      if (popup?.closed) {
-        clearInterval(interval)
-        return
-      }
-      const popupUrl = popup?.location?.href
-      if (popupUrl?.includes('/oauth2/callback?token=')) {
-        const token = new URL(popupUrl).searchParams.get('token')
-        if (token) {
-          localStorage.setItem('token', token)
-          clearInterval(interval)
-          popup?.close()
-          window.location.href = '/dashboard'
-        }
-      }
-    } catch {
-      // Cross-origin — popup is still on the provider's domain, ignore.
-    }
-  }, 500)
-}
+import { useEffect, useRef, useState } from 'react'
 
 /** Google "G" brand mark (lucide dropped brand icons). */
 function GoogleIcon() {
@@ -68,6 +39,66 @@ function GithubIcon() {
  * redirects back to /oauth2/callback with a token once the flow completes.
  */
 export default function SocialAuthButtons() {
+  // Setting a provider kicks off the OAuth flow in the effect below.
+  const [provider, setProvider] = useState<'google' | 'github' | null>(null)
+
+  // Refs survive re-renders so the effect cleanup can always reach them.
+  const popupRef = useRef<Window | null>(null)
+  const intervalRef = useRef<number | null>(null)
+  const handlerRef = useRef<((event: MessageEvent) => void) | null>(null)
+
+  useEffect(() => {
+    if (!provider) return
+
+    // Tear down the listener and the popup-watch interval. Idempotent so it's
+    // safe to call from the token handler, the closed-popup check, and the
+    // effect cleanup alike.
+    const cleanup = () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      if (handlerRef.current) {
+        window.removeEventListener('message', handlerRef.current)
+        handlerRef.current = null
+      }
+    }
+
+    // Register the listener before opening the popup so we never miss the
+    // token message. Keep listening (no { once: true }) so a stray message
+    // can't consume the handler before the real token arrives.
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data?.token) {
+        localStorage.setItem('token', event.data.token)
+        cleanup()
+        window.location.href = '/dashboard'
+      }
+    }
+    handlerRef.current = handler
+    window.addEventListener('message', handler)
+
+    // Relative path so the request goes through the nginx proxy to the backend.
+    const url = `/oauth2/authorize/${provider}`
+    popupRef.current = window.open(
+      url,
+      'oauth',
+      'width=500,height=600,scrollbars=yes',
+    )
+
+    // If the popup is closed without sending a token, the user cancelled —
+    // stop watching and reset so the buttons can start a fresh attempt.
+    intervalRef.current = window.setInterval(() => {
+      if (popupRef.current?.closed) {
+        cleanup()
+        setProvider(null)
+      }
+    }, 500)
+
+    // Runs on unmount or before re-running for a new provider — no leaks.
+    return cleanup
+  }, [provider])
+
   return (
     <>
       <div className="my-6 flex items-center gap-3">
@@ -81,7 +112,7 @@ export default function SocialAuthButtons() {
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => openOAuthPopup('google')}
+          onClick={() => setProvider('google')}
           className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors hover:bg-surface-50 dark:hover:bg-surface-700"
         >
           <GoogleIcon />
@@ -89,7 +120,7 @@ export default function SocialAuthButtons() {
         </button>
         <button
           type="button"
-          onClick={() => openOAuthPopup('github')}
+          onClick={() => setProvider('github')}
           className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors hover:bg-surface-50 dark:hover:bg-surface-700"
         >
           <GithubIcon />

@@ -44,6 +44,8 @@ public class SecurityConfig {
                         "/api/auth/resend-verification",
                         "/api/auth/verify-2fa").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                // Container healthcheck — only the health endpoint, not other actuator routes.
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/simulation/run").permitAll()
                 // OAuth2 handshake endpoints must be reachable without a JWT.
                 .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()

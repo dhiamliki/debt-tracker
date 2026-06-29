@@ -1,15 +1,21 @@
-@"
 # Backend
 Backend/target/
 Backend/.mvn/
 Backend/src/main/resources/application-dev.properties
+Backend/src/main/resources/application-dev.yml
 
 # Frontend
 Frontend/node_modules/
 Frontend/dist/
 Frontend/.env
 
+# Environment
+.env
+Backend/docker.env
+
 # General
 .idea/
 *.iml
-"@ | Out-File -FilePath .gitignore -Encoding utf8
+
+# Claude Code
+.claude/

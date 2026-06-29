@@ -31,19 +31,19 @@ export default function NotificationBell() {
     : [
         {
           id: '1',
-          text: '💡 Tip: Avalanche saves you money on high-interest debt',
+          text: 'Tip: Avalanche saves you money on high-interest debt',
           time: '2h ago',
         },
         {
           id: '2',
           text: payoffDate
-            ? `🎯 You're on track to be debt free by ${payoffDate}`
-            : '🎯 Set a monthly budget to project your debt-free date',
+            ? `You're on track to be debt free by ${payoffDate}`
+            : 'Set a monthly budget to project your debt-free date',
           time: '1d ago',
         },
         {
           id: '3',
-          text: '📊 Run a simulation to see your latest payoff date',
+          text: 'Run a simulation to see your latest payoff date',
           time: '3d ago',
         },
       ]

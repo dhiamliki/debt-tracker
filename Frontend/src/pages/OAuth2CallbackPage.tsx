@@ -23,8 +23,15 @@ export default function OAuth2CallbackPage() {
     const error = searchParams.get('error')
 
     if (token && !error) {
-      localStorage.setItem('token', token)
-      navigate('/dashboard', { replace: true })
+      if (window.opener) {
+        // Opened as an OAuth popup: hand the token to the main window, then close.
+        window.opener.postMessage({ token }, window.location.origin)
+        window.close()
+      } else {
+        // Direct navigation (no opener): store and route in this same window.
+        localStorage.setItem('token', token)
+        navigate('/dashboard', { replace: true })
+      }
     } else {
       setFailed(true)
     }

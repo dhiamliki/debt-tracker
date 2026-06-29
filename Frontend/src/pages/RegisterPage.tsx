@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { CheckCircle2, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import AuthLayout from '@/components/AuthLayout'
 import SocialAuthButtons from '@/components/SocialAuthButtons'
@@ -8,7 +8,6 @@ const REGISTER_URL = 'http://localhost:8080/api/auth/register'
 const RESEND_URL = 'http://localhost:8080/api/auth/resend-verification'
 
 export default function RegisterPage() {
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -126,7 +125,7 @@ export default function RegisterPage() {
     <AuthLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-          Create your account 🚀
+          Create your account
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Start tracking your path to debt freedom

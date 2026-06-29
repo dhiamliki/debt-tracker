@@ -193,7 +193,7 @@ function ProgressCard() {
 
   const message =
     pct === 100
-      ? "You're debt-free! 🎉"
+      ? "You're debt-free!"
       : pct === 0
         ? "Let's knock out that first debt"
         : 'Keep going — every payment counts'

@@ -1,0 +1,28 @@
+# Node dependencies (rebuilt inside Docker)
+node_modules/
+
+# Vite build output
+dist/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Docker files
+Dockerfile
+.dockerignore

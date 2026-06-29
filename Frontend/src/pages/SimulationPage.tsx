@@ -835,7 +835,7 @@ function StrategyBreakdown({
 
       {priorityDebt && extraPayment > 0 && (
         <div className={cn('mt-4 rounded-lg px-4 py-3 text-sm', bannerClass)}>
-          💡 Extra {formatCurrency(extraPayment)} concentrated on{' '}
+          Extra {formatCurrency(extraPayment)} concentrated on{' '}
           {priorityDebt.title} ({bannerDetail})
         </div>
       )}

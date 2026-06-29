@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./Backend/docker.env
+    restart: unless-stopped
+    networks:
+      - debttracker-net
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - debttracker-net
+
+networks:
+  debttracker-net:
+    driver: bridge

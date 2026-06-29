@@ -13,14 +13,18 @@ public class EmailService {
     private static final String FROM = "onboarding@resend.dev";
 
     private final Resend resend;
+    private final String frontendUrl;
 
-    public EmailService(@Value("${resend.api.key}") String apiKey) {
+    public EmailService(
+            @Value("${resend.api.key}") String apiKey,
+            @Value("${app.frontend-url}") String frontendUrl) {
         this.resend = new Resend(apiKey);
+        this.frontendUrl = frontendUrl;
     }
 
     /** Send the post-registration email containing a verification link. */
     public void sendVerificationEmail(String toEmail, String token) {
-        String link = "http://localhost:5173/verify-email?token=" + token;
+        String link = frontendUrl + "/verify-email?token=" + token;
         String html = """
                 <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1f2937;">
                   <h2 style="margin: 0 0 16px;">Verify your DebtTracker account</h2>
