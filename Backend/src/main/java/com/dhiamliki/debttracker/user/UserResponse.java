@@ -7,6 +7,8 @@ public record UserResponse(
         String email,
         String displayName,
         BigDecimal monthlyIncome,
+        boolean verified,
+        boolean twoFaEnabled,
         Instant createdAt) {
 
     public static UserResponse from(User user) {
@@ -14,6 +16,8 @@ public record UserResponse(
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getMonthlyIncome(),
+                user.isVerified(),
+                user.isTwoFaEnabled(),
                 user.getCreatedAt());
     }
 }

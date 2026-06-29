@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useRef } from 'react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import {
   BarChart2,
   Bookmark,
@@ -15,6 +16,7 @@ import {
   Sliders,
   TrendingDown,
   User,
+  X,
 } from 'lucide-react'
 import { useDebtStore } from '@/store/debtStore'
 import { cn } from '@/utils/cn'
@@ -60,78 +62,126 @@ const SECTIONS: NavSection[] = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
   const hasDebts = useDebtStore((s) => s.debts.length > 0)
   const navigate = useNavigate()
+  const backdropStartX = useRef(0)
 
   function handleSignOut() {
+    onClose()
     localStorage.removeItem('token')
     navigate('/login', { replace: true })
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 flex-col bg-[#0f1729] text-slate-300">
-      {/* Logo + app name */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600">
-          <LineChart className="h-5 w-5 text-white" />
-        </div>
-        <span className="text-lg font-semibold text-white">DebtTracker</span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
-        {SECTIONS.map((section) => (
-          <div key={section.heading}>
-            <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-              {section.heading}
-            </p>
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                const Icon = item.icon
-                return (
-                  <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                          isActive
-                            ? 'bg-primary-600 text-white'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-white',
-                        )
-                      }
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
-                      {item.label}
-                    </NavLink>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {/* Motivational progress card — only once there's something to track */}
-      {hasDebts && (
-        <div className="px-3 pt-3">
-          <ProgressCard />
-        </div>
+    <>
+      {/* Backdrop — mobile only, closes the drawer on tap */}
+      {open && (
+        <div
+          className="h-dvh-fallback fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={onClose}
+          onTouchStart={(e) => {
+            backdropStartX.current = e.touches[0].clientX
+          }}
+          onTouchEnd={(e) => {
+            // Swipe left over the backdrop closes the drawer.
+            if (e.changedTouches[0].clientX - backdropStartX.current < -50) {
+              onClose()
+            }
+          }}
+          aria-hidden
+        />
       )}
 
-      {/* Sign out */}
-      <div className="p-3">
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          Sign out
-        </button>
-      </div>
-    </aside>
+      <aside
+        className={cn(
+          'h-dvh-fallback fixed left-0 top-0 z-50 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-[#0f1729] text-slate-300 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:max-w-none lg:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {/* Logo + app name */}
+        <div className="flex items-center justify-between px-5 py-5">
+          <Link
+            to="/dashboard"
+            onClick={onClose}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600">
+              <LineChart className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-lg font-semibold text-white">DebtTracker</span>
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white lg:hidden"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2">
+          {SECTIONS.map((section) => (
+            <div key={section.heading}>
+              <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {section.heading}
+              </p>
+              <ul className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <li key={item.to}>
+                      <NavLink
+                        to={item.to}
+                        onClick={onClose}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                            isActive
+                              ? 'bg-primary-600 text-white'
+                              : 'text-slate-400 hover:bg-white/5 hover:text-white',
+                          )
+                        }
+                      >
+                        <Icon className="h-5 w-5 shrink-0" />
+                        {item.label}
+                      </NavLink>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {/* Motivational progress card — only once there's something to track */}
+        {hasDebts && (
+          <div className="px-3 pt-3">
+            <ProgressCard />
+          </div>
+        )}
+
+        {/* Sign out */}
+        <div className="p-3">
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDebtStore } from '@/store/debtStore'
@@ -75,6 +75,69 @@ function MoneyInput({
   )
 }
 
+/** Inline "log a payment" form, shared by the mobile cards and desktop table. */
+function LogPaymentForm({
+  debtId,
+  symbol,
+  payAmount,
+  setPayAmount,
+  payNote,
+  setPayNote,
+  onSave,
+  onCancel,
+}: {
+  debtId: string
+  symbol: string
+  payAmount: string
+  setPayAmount: (v: string) => void
+  payNote: string
+  setPayNote: (v: string) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <div className="sm:w-44">
+        <label className="label" htmlFor={`pay-${debtId}`}>
+          Amount paid this month
+        </label>
+        <MoneyInput
+          id={`pay-${debtId}`}
+          symbol={symbol}
+          value={payAmount}
+          onChange={setPayAmount}
+        />
+      </div>
+      <div className="sm:flex-1">
+        <label className="label" htmlFor={`note-${debtId}`}>
+          Note (optional)
+        </label>
+        <input
+          id={`note-${debtId}`}
+          className="input"
+          type="text"
+          placeholder="e.g. tax refund"
+          value={payNote}
+          onChange={(e) => setPayNote(e.target.value)}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!(Number(payAmount) > 0)}
+          onClick={onSave}
+        >
+          Save
+        </button>
+        <button type="button" className="btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function DebtsPage() {
   const navigate = useNavigate()
   const debts = useDebtStore((s) => s.debts)
@@ -97,6 +160,9 @@ export default function DebtsPage() {
   const [loggingId, setLoggingId] = useState<string | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payNote, setPayNote] = useState('')
+  // Swipe-to-reveal on mobile cards — only one open at a time.
+  const [swipedId, setSwipedId] = useState<string | null>(null)
+  const cardStartX = useRef(0)
   // Local string mirror for smooth typing; the parsed value is synced to the
   // store (and persisted) so the dashboard can run the same simulation.
   const [monthlyBudget, setMonthlyBudget] = useState(
@@ -351,7 +417,121 @@ export default function DebtsPage() {
         {debts.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">No debts added yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile: card list — swipe left to reveal Edit/Delete */}
+            <div className="space-y-3 md:hidden">
+              {debts.map((debt, i) => {
+                const open = swipedId === debt.id
+                return (
+                  <div
+                    key={debt.id}
+                    className="relative overflow-hidden rounded-lg"
+                  >
+                    {/* Revealed actions */}
+                    <div className="absolute inset-y-0 right-0 flex">
+                      <button
+                        type="button"
+                        className="flex w-20 items-center justify-center bg-primary-600 text-sm font-medium text-white"
+                        onClick={() => {
+                          setSwipedId(null)
+                          handleEdit(debt.id)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="flex w-20 items-center justify-center bg-red-600 text-sm font-medium text-white"
+                        onClick={() => {
+                          setSwipedId(null)
+                          handleDelete(debt.id)
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+
+                    {/* Front content — slides left when swiped */}
+                    <div
+                      className="relative border border-l-4 border-surface-200 bg-white p-4 transition-transform duration-200 dark:border-slate-700 dark:bg-surface-800"
+                      style={{
+                        borderLeftColor: DEBT_BORDERS[i % DEBT_BORDERS.length],
+                        transform: open ? 'translateX(-10rem)' : 'translateX(0)',
+                      }}
+                      onClick={() => {
+                        if (open) setSwipedId(null)
+                      }}
+                      onTouchStart={(e) => {
+                        cardStartX.current = e.touches[0].clientX
+                      }}
+                      onTouchEnd={(e) => {
+                        const diff =
+                          e.changedTouches[0].clientX - cardStartX.current
+                        if (diff < -60) setSwipedId(debt.id)
+                        else if (diff > 60) setSwipedId(null)
+                      }}
+                    >
+                      <p className="font-medium text-slate-900 dark:text-slate-100">
+                        {debt.title}
+                      </p>
+                      <dl className="mt-2 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <dt className="text-slate-500 dark:text-slate-400">
+                            Balance
+                          </dt>
+                          <dd className="text-slate-700 dark:text-slate-300">
+                            {formatCurrency(debt.balance)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-slate-500 dark:text-slate-400">
+                            Interest
+                          </dt>
+                          <dd className="text-slate-700 dark:text-slate-300">
+                            {formatPercent(debt.interestRate)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-slate-500 dark:text-slate-400">
+                            Min. payment
+                          </dt>
+                          <dd className="text-slate-700 dark:text-slate-300">
+                            {formatCurrency(debt.monthlyPayment)}
+                          </dd>
+                        </div>
+                      </dl>
+                      <button
+                        type="button"
+                        className="mt-3 w-full rounded-lg border border-surface-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-300"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openLog(debt.id)
+                        }}
+                      >
+                        Log Payment
+                      </button>
+                      {loggingId === debt.id && (
+                        <div className="mt-3 border-t border-surface-100 pt-3 dark:border-slate-700">
+                          <LogPaymentForm
+                            debtId={debt.id}
+                            symbol={currencySymbol}
+                            payAmount={payAmount}
+                            setPayAmount={setPayAmount}
+                            payNote={payNote}
+                            setPayNote={setPayNote}
+                            onSave={() => handleLogPayment(debt.id)}
+                            onCancel={() => setLoggingId(null)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-surface-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
@@ -413,55 +593,16 @@ export default function DebtsPage() {
                     {loggingId === debt.id && (
                       <tr className="border-b border-surface-100 dark:border-slate-700 bg-surface-50 dark:bg-surface-700">
                         <td colSpan={5} className="px-3 py-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                            <div className="sm:w-44">
-                              <label
-                                className="label"
-                                htmlFor={`pay-${debt.id}`}
-                              >
-                                Amount paid this month
-                              </label>
-                              <MoneyInput
-                                id={`pay-${debt.id}`}
-                                symbol={currencySymbol}
-                                value={payAmount}
-                                onChange={setPayAmount}
-                              />
-                            </div>
-                            <div className="sm:flex-1">
-                              <label
-                                className="label"
-                                htmlFor={`note-${debt.id}`}
-                              >
-                                Note (optional)
-                              </label>
-                              <input
-                                id={`note-${debt.id}`}
-                                className="input"
-                                type="text"
-                                placeholder="e.g. tax refund"
-                                value={payNote}
-                                onChange={(e) => setPayNote(e.target.value)}
-                              />
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                disabled={!(Number(payAmount) > 0)}
-                                onClick={() => handleLogPayment(debt.id)}
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-ghost"
-                                onClick={() => setLoggingId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
+                          <LogPaymentForm
+                            debtId={debt.id}
+                            symbol={currencySymbol}
+                            payAmount={payAmount}
+                            setPayAmount={setPayAmount}
+                            payNote={payNote}
+                            setPayNote={setPayNote}
+                            onSave={() => handleLogPayment(debt.id)}
+                            onCancel={() => setLoggingId(null)}
+                          />
                         </td>
                       </tr>
                     )}
@@ -469,12 +610,13 @@ export default function DebtsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </section>
 
       {/* Budget + run */}
-      <section className="card">
+      <section className="card mb-24 lg:mb-0">
         <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           Run simulation
         </h2>

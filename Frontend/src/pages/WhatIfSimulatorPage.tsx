@@ -373,7 +373,7 @@ export default function WhatIfSimulatorPage() {
             <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
               Total debt over time
             </h2>
-            <div className="h-72">
+            <div className="h-[200px] sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartData}

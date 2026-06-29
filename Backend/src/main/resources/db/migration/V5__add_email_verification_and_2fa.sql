@@ -1,0 +1,6 @@
+ALTER TABLE users ADD COLUMN verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN verification_token VARCHAR(64);
+ALTER TABLE users ADD COLUMN verification_token_expires_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN two_fa_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN otp_code VARCHAR(6);
+ALTER TABLE users ADD COLUMN otp_expires_at TIMESTAMP;

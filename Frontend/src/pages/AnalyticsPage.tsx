@@ -263,7 +263,7 @@ export default function AnalyticsPage() {
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           Total interest each debt accrues if paid with minimum payments only.
         </p>
-        <div style={{ height: 300 }}>
+        <div className="h-[220px] sm:h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={interestData}
@@ -314,7 +314,7 @@ export default function AnalyticsPage() {
           Month each debt is cleared — Snowball vs Avalanche.
         </p>
         {plansAffordable ? (
-          <div style={{ height: 300 }}>
+          <div className="h-[260px] sm:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={timelineData}
@@ -327,9 +327,14 @@ export default function AnalyticsPage() {
                 />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 12 }}
                   interval={0}
-                  height={40}
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v: string) =>
+                    v.length > 8 ? `${v.slice(0, 8).trim()}.` : v
+                  }
                 />
                 <YAxis
                   tick={{ fontSize: 12 }}
@@ -345,13 +350,13 @@ export default function AnalyticsPage() {
                   dataKey="Snowball"
                   fill={SNOWBALL_COLOR}
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={40}
+                  barSize={12}
                 />
                 <Bar
                   dataKey="Avalanche"
                   fill={AVALANCHE_COLOR}
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={40}
+                  barSize={12}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -372,7 +377,7 @@ export default function AnalyticsPage() {
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           How your monthly budget splits across debts, with any leftover buffer.
         </p>
-        <div className="h-80">
+        <div className="h-[200px] overflow-hidden sm:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -381,11 +386,8 @@ export default function AnalyticsPage() {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={110}
-                label={({ name, percent }) =>
-                  `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                }
+                innerRadius={50}
+                outerRadius={80}
               >
                 {pieData.map((d) => (
                   <Cell key={d.name} fill={d.fill} />
@@ -395,10 +397,26 @@ export default function AnalyticsPage() {
                 cursor={false}
                 content={<CustomTooltip formatValue={formatCurrency} />}
               />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </div>
+        {/* Legend — stacks vertically on mobile, wraps on larger screens */}
+        <ul className="mt-4 flex flex-col gap-2 text-xs sm:flex-row sm:flex-wrap sm:gap-x-4">
+          {pieData.map((d) => (
+            <li key={d.name} className="flex items-center gap-2">
+              <span
+                className="h-3 w-3 shrink-0 rounded-full"
+                style={{ backgroundColor: d.fill }}
+              />
+              <span className="text-slate-600 dark:text-slate-300">
+                {d.name}
+              </span>
+              <span className="ml-auto font-medium text-slate-900 sm:ml-1 dark:text-slate-100">
+                {formatCurrency(d.value)}
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* 5. Cost of debt table */}
@@ -412,9 +430,15 @@ export default function AnalyticsPage() {
               <tr className="border-b border-surface-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 <th className="py-2 pr-4 font-medium">Debt</th>
                 <th className="py-2 pr-4 font-medium">Balance</th>
-                <th className="py-2 pr-4 font-medium">Total interest</th>
-                <th className="py-2 pr-4 font-medium">True cost</th>
-                <th className="py-2 pr-4 font-medium text-right">Cost ratio</th>
+                <th className="hidden py-2 pr-4 font-medium md:table-cell">
+                  Total interest
+                </th>
+                <th className="hidden py-2 pr-4 font-medium md:table-cell">
+                  True cost
+                </th>
+                <th className="hidden py-2 pr-4 font-medium text-right md:table-cell">
+                  Cost ratio
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -432,15 +456,15 @@ export default function AnalyticsPage() {
                   <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                     {formatCurrency(row.balance)}
                   </td>
-                  <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
+                  <td className="hidden py-3 pr-4 text-slate-700 md:table-cell dark:text-slate-300">
                     {formatCurrency(row.interest)}
                   </td>
-                  <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
+                  <td className="hidden py-3 pr-4 text-slate-700 md:table-cell dark:text-slate-300">
                     {formatCurrency(row.trueCost)}
                   </td>
                   <td
                     className={cn(
-                      'py-3 pr-4 text-right font-medium',
+                      'hidden py-3 pr-4 text-right font-medium md:table-cell',
                       row.ratio > 50 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300',
                     )}
                   >

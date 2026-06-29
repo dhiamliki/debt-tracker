@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Bell,
@@ -6,10 +6,13 @@ import {
   Database,
   Download,
   Palette,
+  ShieldCheck,
   SlidersHorizontal,
   Trash2,
 } from 'lucide-react'
 import { useDebtStore } from '@/store/debtStore'
+import { getMe, sendOtp, update2FA } from '@/services/userService'
+import OtpInput from '@/components/OtpInput'
 import { cn } from '@/utils/cn'
 
 const CURRENCIES: [string, string][] = [
@@ -52,6 +55,77 @@ export default function PreferencesPage() {
   )
 
   const [saved, setSaved] = useState(false)
+
+  // Two-factor auth lives on the server, not in the local store.
+  const [twoFaEnabled, setTwoFaEnabled] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  // The target value awaiting email confirmation (null = no pending change).
+  const [pending2FA, setPending2FA] = useState<boolean | null>(null)
+  const [otp, setOtp] = useState('')
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    getMe()
+      .then((profile) => {
+        if (active) setTwoFaEnabled(profile.twoFaEnabled)
+      })
+      .catch(() => {
+        /* Leave the toggle off if the profile can't be loaded. */
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const showToast = (message: string) => {
+    setToast(message)
+    window.setTimeout(() => setToast(null), 2500)
+  }
+
+  // Clicking the toggle doesn't change the setting — it emails a code and
+  // opens the confirmation card. The actual change happens on confirm.
+  const startToggle2FA = () => {
+    const target = !twoFaEnabled
+    setPending2FA(target)
+    setOtp('')
+    setConfirmError(null)
+    sendOtp().catch(() => {
+      setConfirmError('Could not send a verification code. Please try again.')
+    })
+  }
+
+  const cancelToggle2FA = () => {
+    setPending2FA(null)
+    setOtp('')
+    setConfirmError(null)
+  }
+
+  const confirmToggle2FA = async () => {
+    if (pending2FA === null || otp.length !== 6) return
+    setConfirmLoading(true)
+    setConfirmError(null)
+    try {
+      const profile = await update2FA(pending2FA, otp)
+      setTwoFaEnabled(profile.twoFaEnabled)
+      setPending2FA(null)
+      setOtp('')
+      showToast(
+        profile.twoFaEnabled
+          ? 'Two-factor authentication enabled'
+          : 'Two-factor authentication disabled',
+      )
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || 'Invalid or expired verification code'
+      setConfirmError(message)
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
 
   const handleSave = () => {
     setPreferences({
@@ -222,7 +296,98 @@ export default function PreferencesPage() {
         />
       </Section>
 
-      {/* 4. Data & privacy */}
+      {/* 4. Security */}
+      <Section
+        icon={ShieldCheck}
+        title="Security"
+        description="Protect access to your account."
+      >
+        <div className="flex w-full items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                Two-Factor Authentication
+              </p>
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-xs font-medium',
+                  twoFaEnabled
+                    ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',
+                )}
+              >
+                {twoFaEnabled ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Require a verification code by email each time you sign in
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={twoFaEnabled}
+            aria-label="Two-Factor Authentication"
+            disabled={pending2FA !== null}
+            onClick={startToggle2FA}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+              twoFaEnabled ? 'bg-primary-500' : 'bg-slate-300 dark:bg-slate-600',
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200',
+                twoFaEnabled ? 'translate-x-6' : 'translate-x-1',
+              )}
+            />
+          </button>
+        </div>
+
+        {/* Email-confirmation card — shown after the toggle is clicked. */}
+        {pending2FA !== null && (
+          <div className="mt-4 rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-slate-700 dark:bg-surface-900/40">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Confirm with verification code
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              We sent a 6-digit code to your email. Enter it below to{' '}
+              {pending2FA ? 'enable' : 'disable'} two-factor authentication.
+            </p>
+
+            <div className="mt-4 max-w-xs">
+              <OtpInput value={otp} onChange={setOtp} />
+            </div>
+
+            {confirmError && (
+              <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+                {confirmError}
+              </p>
+            )}
+
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={confirmToggle2FA}
+                disabled={confirmLoading || otp.length !== 6}
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {confirmLoading ? 'Confirming…' : 'Confirm'}
+              </button>
+              <button
+                type="button"
+                onClick={cancelToggle2FA}
+                disabled={confirmLoading}
+                className="btn-ghost border border-surface-200 dark:border-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* 5. Data & privacy */}
       <Section
         icon={Database}
         title="Data & privacy"
@@ -260,6 +425,14 @@ export default function PreferencesPage() {
           </span>
         )}
       </div>
+
+      {/* Transient toast for 2FA changes */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-card dark:border-slate-700 dark:bg-surface-800 dark:text-slate-100">
+          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

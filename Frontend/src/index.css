@@ -64,7 +64,7 @@
 
 @layer components {
   .card {
-    @apply rounded-xl border border-surface-200 bg-white p-6 shadow-sm;
+    @apply rounded-xl border border-surface-200 bg-white p-4 shadow-sm sm:p-6;
     @apply dark:border-slate-700 dark:bg-surface-800;
   }
 
@@ -85,5 +85,44 @@
   .label {
     @apply mb-1 block text-sm font-medium text-slate-600;
     @apply dark:text-slate-400;
+  }
+}
+
+@layer utilities {
+  /* Full dynamic viewport height — tracks the mobile address bar, with a
+     100vh fallback for browsers that don't support dvh. */
+  .h-dvh-fallback {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Tab slide-in animations (Simulation page swipe between tabs). */
+  .tab-slide-next {
+    animation: tab-slide-next 200ms ease-out;
+  }
+  .tab-slide-prev {
+    animation: tab-slide-prev 200ms ease-out;
+  }
+}
+
+@keyframes tab-slide-next {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tab-slide-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CartesianGrid,
@@ -16,13 +16,14 @@ import {
 import {
   CalendarCheck,
   CalendarDays,
+  Loader2,
   type LucideIcon,
   Pencil,
   Percent,
   Wallet,
 } from 'lucide-react'
 import { useDebtStore } from '@/store/debtStore'
-import { useUserStore } from '@/store/userStore'
+import { getDebts } from '@/services/debtService'
 import { runSnowball, runAvalanche } from '@/utils/simulate'
 import {
   formatMonthsWithDate,
@@ -33,8 +34,8 @@ import { cn } from '@/utils/cn'
 import type { Debt } from '@/types/debt'
 import type { SimulationResult } from '@/types/simulation'
 
-/** Shared card styling for the dashboard: a touch more padding + soft shadow. */
-const CARD = 'card p-7 shadow-md'
+/** Shared card styling for the dashboard: responsive padding + soft shadow. */
+const CARD = 'card shadow-md'
 
 const DTI_TEXT: Record<string, string> = {
   green: 'text-green-600 dark:text-green-300',
@@ -214,20 +215,32 @@ export default function DashboardPage() {
   const showTips = useDebtStore((s) => s.showTips)
   const showHealthScore = useDebtStore((s) => s.showHealthScore)
   const removeDebt = useDebtStore((s) => s.removeDebt)
-  const displayName = useUserStore((s) => s.displayName)
-  const email = useUserStore((s) => s.email)
+  const setDebts = useDebtStore((s) => s.setDebts)
   const fmt = useCurrencyFormatter()
-
-  const userName = displayName || email || 'User'
-  const userInitial = (displayName || email || 'U').charAt(0).toUpperCase()
-
-  const dark = useDebtStore((s) => s.darkMode)
-  const toggleDarkMode = useDebtStore((s) => s.toggleDarkMode)
 
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput] = useState(
     monthlyIncome ? String(monthlyIncome) : '',
   )
+
+  // Pull-to-refresh (mobile). Only engages when the page is scrolled to top.
+  const [pull, setPull] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const pullStartY = useRef<number | null>(null)
+
+  const doRefresh = () => {
+    if (refreshing) return
+    setRefreshing(true)
+    setPull(0)
+    getDebts()
+      .then((data) => setDebts(data))
+      .catch(() => {
+        /* keep current data on failure */
+      })
+      .finally(() => {
+        window.setTimeout(() => setRefreshing(false), 1000)
+      })
+  }
 
   const totalMinimums = debts.reduce((sum, d) => sum + d.monthlyPayment, 0)
   // A meaningful comparison needs budget beyond the minimums; only then can the
@@ -338,7 +351,38 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onTouchStart={(e) => {
+        pullStartY.current =
+          window.scrollY === 0 ? e.touches[0].clientY : null
+      }}
+      onTouchMove={(e) => {
+        if (pullStartY.current === null || refreshing) return
+        const diff = e.touches[0].clientY - pullStartY.current
+        if (diff > 0) setPull(Math.min(diff, 100))
+      }}
+      onTouchEnd={() => {
+        if (pull > 80) doRefresh()
+        else setPull(0)
+        pullStartY.current = null
+      }}
+    >
+      {/* Pull-to-refresh spinner */}
+      {(pull > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-[height] duration-150"
+          style={{ height: refreshing ? 36 : pull }}
+        >
+          <Loader2
+            className={cn(
+              'h-6 w-6 text-primary-600 dark:text-primary-400',
+              refreshing && 'animate-spin',
+            )}
+          />
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -348,30 +392,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center justify-end gap-3">
-          <button
-            type="button"
-            aria-label="Toggle dark mode"
-            onClick={toggleDarkMode}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
-          >
-            {dark ? <MoonIcon /> : <SunIcon />}
-          </button>
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
-          >
-            <BellIcon />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
-              {userInitial}
-            </span>
-            <span className="hidden text-sm font-medium text-slate-700 dark:text-slate-300 sm:inline">
-              {userName}
-            </span>
-          </div>
           <Link to="/debts" className="btn-primary whitespace-nowrap">
             New Simulation
           </Link>
@@ -379,7 +399,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <SummaryCard
           label="Total Debt"
           value={fmt(totalDebt)}
@@ -554,9 +574,13 @@ export default function DashboardPage() {
                 <tr className="border-b border-surface-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4 font-medium">Debt</th>
                   <th className="py-2 pr-4 font-medium">Balance</th>
-                  <th className="py-2 pr-4 font-medium">Interest Rate</th>
+                  <th className="hidden py-2 pr-4 font-medium md:table-cell">
+                    Interest Rate
+                  </th>
                   <th className="py-2 pr-4 font-medium">Min. Payment</th>
-                  <th className="py-2 pr-4 font-medium">True Cost</th>
+                  <th className="hidden py-2 pr-4 font-medium md:table-cell">
+                    True Cost
+                  </th>
                   <th className="w-10 py-2 font-medium" />
                 </tr>
               </thead>
@@ -601,7 +625,7 @@ export default function DashboardPage() {
                       <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {fmt(d.balance)}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
+                      <td className="hidden py-3 pr-4 text-slate-700 md:table-cell dark:text-slate-300">
                         {formatPercent(d.interestRate)}
                       </td>
                       <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
@@ -609,7 +633,7 @@ export default function DashboardPage() {
                       </td>
                       <td
                         className={cn(
-                          'py-3 pr-4',
+                          'hidden py-3 pr-4 md:table-cell',
                           costly
                             ? 'font-medium text-orange-600 dark:text-orange-300'
                             : 'text-slate-700 dark:text-slate-300',
@@ -631,9 +655,11 @@ export default function DashboardPage() {
                 <tr className="border-t border-surface-200 dark:border-slate-700 font-medium text-slate-900 dark:text-slate-100">
                   <td className="py-3 pr-4">Total</td>
                   <td className="py-3 pr-4">{fmt(totalDebt)}</td>
-                  <td className="py-3 pr-4 text-slate-400 dark:text-slate-400">—</td>
+                  <td className="hidden py-3 pr-4 text-slate-400 md:table-cell dark:text-slate-400">
+                    —
+                  </td>
                   <td className="py-3 pr-4">{fmt(totalMinimums)}</td>
-                  <td className="py-3 pr-4">
+                  <td className="hidden py-3 pr-4 md:table-cell">
                     {totalTrueCost === null ? '—' : fmt(totalTrueCost)}
                   </td>
                   <td className="py-3" />
@@ -749,7 +775,7 @@ export default function DashboardPage() {
             Total Debt Over Time
           </h2>
           {hasBudget ? (
-            <div className="h-72">
+            <div className="h-[200px] lg:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={lineData}
@@ -851,7 +877,9 @@ function SummaryCard({
     <div className={cn(CARD, 'flex items-start justify-between')}>
       <div>
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
-        <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+        <p className="mt-2 text-lg font-semibold text-slate-900 sm:text-2xl dark:text-slate-100">
+          {value}
+        </p>
         {sub && <p className="mt-1 text-xs text-slate-400 dark:text-slate-400">{sub}</p>}
       </div>
       <span
@@ -1034,28 +1062,3 @@ function WalletIcon() {
   )
 }
 
-function SunIcon() {
-  return (
-    <Svg>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </Svg>
-  )
-}
-
-function MoonIcon() {
-  return (
-    <Svg>
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </Svg>
-  )
-}
-
-function BellIcon() {
-  return (
-    <Svg>
-      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-    </Svg>
-  )
-}

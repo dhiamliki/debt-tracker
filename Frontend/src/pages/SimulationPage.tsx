@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   CalendarCheck,
@@ -69,6 +69,17 @@ export default function SimulationPage() {
   const lastAvalancheResult = useDebtStore((s) => s.lastAvalancheResult)
   const formatCurrency = useCurrencyFormatter()
   const [tab, setTab] = useState<Tab>('overview')
+  const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next')
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+
+  const tabIndex = TABS.findIndex((t) => t.key === tab)
+  const changeTab = (target: Tab) => {
+    const targetIdx = TABS.findIndex((t) => t.key === target)
+    if (targetIdx === tabIndex) return
+    setSlideDir(targetIdx > tabIndex ? 'next' : 'prev')
+    setTab(target)
+  }
   const [extra, setExtra] = useState(0)
   const [lumpSum, setLumpSum] = useState(0)
   const [lumpTarget, setLumpTarget] = useState('auto')
@@ -545,7 +556,7 @@ export default function SimulationPage() {
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => changeTab(t.key)}
             className={cn(
               '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
               tab === t.key
@@ -558,31 +569,73 @@ export default function SimulationPage() {
         ))}
       </div>
 
-      {tab === 'overview' && (
-        <ComparisonCards snowball={snowball} avalanche={avalanche} />
-      )}
-
-      {tab === 'timeline' && (
-        <div className="space-y-6">
-          <TimelineChart snowball={snowball} avalanche={avalanche} />
-          <BalanceTable snowball={snowball} avalanche={avalanche} />
-        </div>
-      )}
-
-      {tab === 'details' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <PayoffOrderCard
-            result={snowball}
-            label="Debt Snowball"
-            balanceById={balanceById}
+      {/* Dot indicators */}
+      <div className="flex justify-center gap-2">
+        {TABS.map((t) => (
+          <span
+            key={t.key}
+            className={cn(
+              'h-1.5 rounded-full transition-all duration-200',
+              t.key === tab
+                ? 'w-5 bg-primary-600 dark:bg-primary-400'
+                : 'w-1.5 bg-surface-300 dark:bg-slate-600',
+            )}
           />
-          <PayoffOrderCard
-            result={avalanche}
-            label="Debt Avalanche"
-            balanceById={balanceById}
-          />
+        ))}
+      </div>
+
+      {/* Swipeable tab content */}
+      <div
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={(e) => {
+          touchStartX.current = e.touches[0].clientX
+          touchStartY.current = e.touches[0].clientY
+        }}
+        onTouchEnd={(e) => {
+          const deltaX = e.changedTouches[0].clientX - touchStartX.current
+          const deltaY = e.changedTouches[0].clientY - touchStartY.current
+          // Only act on a dominant horizontal swipe of at least 60px.
+          if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY)) {
+            return
+          }
+          if (deltaX < 0 && tabIndex < TABS.length - 1) {
+            changeTab(TABS[tabIndex + 1].key)
+          } else if (deltaX > 0 && tabIndex > 0) {
+            changeTab(TABS[tabIndex - 1].key)
+          }
+        }}
+      >
+        <div
+          key={tab}
+          className={slideDir === 'next' ? 'tab-slide-next' : 'tab-slide-prev'}
+        >
+          {tab === 'overview' && (
+            <ComparisonCards snowball={snowball} avalanche={avalanche} />
+          )}
+
+          {tab === 'timeline' && (
+            <div className="space-y-6">
+              <TimelineChart snowball={snowball} avalanche={avalanche} />
+              <BalanceTable snowball={snowball} avalanche={avalanche} />
+            </div>
+          )}
+
+          {tab === 'details' && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <PayoffOrderCard
+                result={snowball}
+                label="Debt Snowball"
+                balanceById={balanceById}
+              />
+              <PayoffOrderCard
+                result={avalanche}
+                label="Debt Avalanche"
+                balanceById={balanceById}
+              />
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Run again */}
       <div className="flex justify-center pt-2">
@@ -948,7 +1001,7 @@ function TimelineChart({
       <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
         Total Debt Over Time
       </h2>
-      <div className="h-72">
+      <div className="h-[200px] sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
