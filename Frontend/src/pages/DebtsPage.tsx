@@ -1,9 +1,10 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDebtStore } from '@/store/debtStore'
 import { runSnowball, runAvalanche } from '@/utils/simulate'
 import { formatPercent, useCurrencyFormatter } from '@/utils/format'
+import { getDebts, saveDebts } from '@/services/debtService'
 
 const CURRENCIES = [
   { code: 'USD', label: 'USD ($)', symbol: '$' },
@@ -36,7 +37,7 @@ function HelpIcon({ text }: { text: string }) {
     <span
       title={text}
       aria-label={text}
-      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-surface-200 text-[10px] font-semibold text-slate-600"
+      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-surface-200 dark:bg-surface-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300"
     >
       ?
     </span>
@@ -57,7 +58,7 @@ function MoneyInput({
 }) {
   return (
     <div className="flex">
-      <span className="inline-flex shrink-0 items-center rounded-l-lg border border-r-0 border-surface-200 bg-surface-100 px-3 text-sm font-medium text-slate-500">
+      <span className="inline-flex shrink-0 items-center rounded-l-lg border border-r-0 border-surface-200 bg-surface-100 px-3 text-sm font-medium text-slate-500 dark:bg-surface-700 dark:text-slate-400 dark:border-slate-600">
         {symbol}
       </span>
       <input
@@ -80,11 +81,15 @@ export default function DebtsPage() {
   const addDebt = useDebtStore((s) => s.addDebt)
   const updateDebt = useDebtStore((s) => s.updateDebt)
   const removeDebt = useDebtStore((s) => s.removeDebt)
+  const setDebts = useDebtStore((s) => s.setDebts)
   const logPayment = useDebtStore((s) => s.logPayment)
   const currency = useDebtStore((s) => s.currency)
   const setCurrency = useDebtStore((s) => s.setCurrency)
   const storeBudget = useDebtStore((s) => s.monthlyBudget)
   const setStoreBudget = useDebtStore((s) => s.setMonthlyBudget)
+  const setLastSimulationResults = useDebtStore(
+    (s) => s.setLastSimulationResults,
+  )
   const formatCurrency = useCurrencyFormatter()
 
   const [form, setForm] = useState<FormFields>(EMPTY_FORM)
@@ -98,6 +103,44 @@ export default function DebtsPage() {
     storeBudget ? String(storeBudget) : '',
   )
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncWarning, setSyncWarning] = useState<string | null>(null)
+
+  // On mount, load the user's debts from the backend into the store (replacing
+  // whatever was persisted locally). If the request fails, keep the local store
+  // and surface a subtle warning.
+  useEffect(() => {
+    let cancelled = false
+    getDebts()
+      .then((backendDebts) => {
+        if (cancelled) return
+        setDebts(backendDebts)
+        setSyncWarning(null)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSyncWarning(
+          'Could not reach the server — showing your locally saved debts.',
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [setDebts])
+
+  // Push the current store state to the backend after a local change.
+  const syncToBackend = () => {
+    saveDebts(useDebtStore.getState().debts)
+      .then(() => setSyncWarning(null))
+      .catch(() =>
+        setSyncWarning(
+          'Saved locally, but changes could not be synced to the server.',
+        ),
+      )
+  }
 
   // Live total of all minimum payments — the floor the budget must clear.
   const totalMinimums = debts.reduce((sum, d) => sum + d.monthlyPayment, 0)
@@ -137,6 +180,7 @@ export default function DebtsPage() {
       addDebt(payload)
     }
     resetForm()
+    syncToBackend()
   }
 
   const handleEdit = (id: string) => {
@@ -155,6 +199,7 @@ export default function DebtsPage() {
   const handleDelete = (id: string) => {
     removeDebt(id)
     if (editingId === id) resetForm()
+    syncToBackend()
   }
 
   const openLog = (id: string) => {
@@ -171,6 +216,7 @@ export default function DebtsPage() {
     setLoggingId(null)
     setPayAmount('')
     setPayNote('')
+    syncToBackend()
   }
 
   const handleRunSimulation = () => {
@@ -184,6 +230,9 @@ export default function DebtsPage() {
     const snowball = runSnowball(input)
     const avalanche = runAvalanche(input)
 
+    // Persist so the results survive navigating away from /simulation.
+    setLastSimulationResults(snowball, avalanche)
+
     window.scrollTo({ top: 0 })
     navigate('/simulation', {
       state: { snowball, avalanche, monthlyBudget: budget },
@@ -193,15 +242,25 @@ export default function DebtsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Debts</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Debts</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Add your debts and a monthly budget, then compare payoff strategies.
         </p>
       </header>
 
+      {loading && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading your debts…</p>
+      )}
+
+      {syncWarning && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30">
+          {syncWarning}
+        </div>
+      )}
+
       {/* Add / edit form */}
       <section className="card">
-        <h2 className="mb-4 text-lg font-medium text-slate-900">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           {editingId ? 'Edit debt' : 'Add a debt'}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -269,7 +328,7 @@ export default function DebtsPage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex items-center gap-3">
             <button type="submit" className="btn-primary">
@@ -286,16 +345,16 @@ export default function DebtsPage() {
 
       {/* Existing debts */}
       <section className="card">
-        <h2 className="mb-4 text-lg font-medium text-slate-900">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           Your debts ({debts.length})
         </h2>
         {debts.length === 0 ? (
-          <p className="text-sm text-slate-500">No debts added yet.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No debts added yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-surface-200 text-slate-500">
+                <tr className="border-b border-surface-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4 font-medium">Name</th>
                   <th className="py-2 pr-4 font-medium">Balance</th>
                   <th className="py-2 pr-4 font-medium">Interest</th>
@@ -306,9 +365,9 @@ export default function DebtsPage() {
               <tbody>
                 {debts.map((debt, i) => (
                   <Fragment key={debt.id}>
-                    <tr className="border-b border-surface-100 last:border-0">
+                    <tr className="border-b border-surface-100 dark:border-slate-700 last:border-0">
                       <td
-                        className="border-l-4 py-3 pl-3 pr-4 font-medium text-slate-900"
+                        className="border-l-4 py-3 pl-3 pr-4 font-medium text-slate-900 dark:text-slate-100"
                         style={{
                           borderLeftColor:
                             DEBT_BORDERS[i % DEBT_BORDERS.length],
@@ -316,13 +375,13 @@ export default function DebtsPage() {
                       >
                         {debt.title}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {formatCurrency(debt.balance)}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {formatPercent(debt.interestRate)}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {formatCurrency(debt.monthlyPayment)}
                       </td>
                       <td className="py-3 pr-4">
@@ -343,7 +402,7 @@ export default function DebtsPage() {
                           </button>
                           <button
                             type="button"
-                            className="rounded-lg px-3 py-1 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                            className="rounded-lg px-3 py-1 text-sm font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
                             onClick={() => handleDelete(debt.id)}
                           >
                             Delete
@@ -352,7 +411,7 @@ export default function DebtsPage() {
                       </td>
                     </tr>
                     {loggingId === debt.id && (
-                      <tr className="border-b border-surface-100 bg-surface-50">
+                      <tr className="border-b border-surface-100 dark:border-slate-700 bg-surface-50 dark:bg-surface-700">
                         <td colSpan={5} className="px-3 py-3">
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                             <div className="sm:w-44">
@@ -416,7 +475,7 @@ export default function DebtsPage() {
 
       {/* Budget + run */}
       <section className="card">
-        <h2 className="mb-4 text-lg font-medium text-slate-900">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           Run simulation
         </h2>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -466,8 +525,8 @@ export default function DebtsPage() {
         <p
           className={
             budgetNum > 0 && budgetNum <= totalMinimums
-              ? 'mt-2 text-xs font-medium text-amber-600'
-              : 'mt-2 text-xs text-slate-500'
+              ? 'mt-2 text-xs font-medium text-amber-600 dark:text-amber-300'
+              : 'mt-2 text-xs text-slate-500 dark:text-slate-400'
           }
         >
           Your minimum payments total is {formatCurrency(totalMinimums)} — budget

@@ -152,8 +152,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* RIGHT — form panel */}
-      <main className="flex w-full items-center justify-center bg-surface-100 px-4 py-10 lg:w-[55%]">
-        <div className="w-full max-w-md rounded-2xl border border-surface-200 bg-white p-8 shadow-card">
+      <main className="flex w-full items-center justify-center bg-surface-100 dark:bg-surface-900 px-4 py-10 lg:w-[55%]">
+        <div className="w-full max-w-md rounded-2xl border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 p-8 shadow-card">
           {children}
         </div>
       </main>

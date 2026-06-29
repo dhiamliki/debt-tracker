@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   BarChart2,
   Bookmark,
@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   LineChart,
+  LogOut,
   type LucideIcon,
   PlusCircle,
   Settings,
@@ -61,6 +62,12 @@ const SECTIONS: NavSection[] = [
 
 export default function Sidebar() {
   const hasDebts = useDebtStore((s) => s.debts.length > 0)
+  const navigate = useNavigate()
+
+  function handleSignOut() {
+    localStorage.removeItem('token')
+    navigate('/login', { replace: true })
+  }
 
   return (
     <aside className="sticky top-0 flex h-screen w-64 flex-col bg-[#0f1729] text-slate-300">
@@ -108,10 +115,22 @@ export default function Sidebar() {
 
       {/* Motivational progress card — only once there's something to track */}
       {hasDebts && (
-        <div className="p-3">
+        <div className="px-3 pt-3">
           <ProgressCard />
         </div>
       )}
+
+      {/* Sign out */}
+      <div className="p-3">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          Sign out
+        </button>
+      </div>
     </aside>
   )
 }

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` applies under .dark on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* primary — indigo */
   --color-primary-50: #eef2ff;
@@ -13,12 +16,14 @@
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
 
-  /* surface — slate */
+  /* surface — slate (50-200 light; 600-950 used for dark mode) */
   --color-surface-50: #f8fafc;
   --color-surface-100: #f1f5f9;
   --color-surface-200: #e2e8f0;
-  --color-surface-800: #1e293b;
-  --color-surface-900: #0f172a;
+  --color-surface-600: #25344a;
+  --color-surface-700: #1e2a3a;
+  --color-surface-800: #1a2332;
+  --color-surface-900: #0f1729;
   --color-surface-950: #020617;
 
   /* typography */
@@ -40,6 +45,7 @@
 
   body {
     @apply bg-surface-50 text-slate-900 font-sans;
+    @apply dark:bg-surface-900 dark:text-slate-100;
   }
 
   ::-webkit-scrollbar {
@@ -59,6 +65,7 @@
 @layer components {
   .card {
     @apply rounded-xl border border-surface-200 bg-white p-6 shadow-sm;
+    @apply dark:border-slate-700 dark:bg-surface-800;
   }
 
   .btn-primary {
@@ -67,13 +74,16 @@
 
   .btn-ghost {
     @apply rounded-lg bg-transparent px-4 py-2 font-medium text-slate-600 transition-colors duration-150 hover:bg-surface-100 hover:text-slate-900;
+    @apply dark:text-slate-300 dark:hover:bg-surface-700 dark:hover:text-slate-100;
   }
 
   .input {
     @apply w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 transition-all duration-150 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500;
+    @apply dark:border-slate-600 dark:bg-surface-800 dark:text-slate-100 dark:placeholder-slate-500;
   }
 
   .label {
     @apply mb-1 block text-sm font-medium text-slate-600;
+    @apply dark:text-slate-400;
   }
 }

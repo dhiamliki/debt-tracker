@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN monthly_income DECIMAL(15,2);
+ALTER TABLE users ADD COLUMN display_name VARCHAR(255);

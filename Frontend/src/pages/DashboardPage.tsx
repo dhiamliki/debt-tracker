@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CartesianGrid,
@@ -22,6 +22,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useDebtStore } from '@/store/debtStore'
+import { useUserStore } from '@/store/userStore'
 import { runSnowball, runAvalanche } from '@/utils/simulate'
 import {
   formatMonthsWithDate,
@@ -36,16 +37,16 @@ import type { SimulationResult } from '@/types/simulation'
 const CARD = 'card p-7 shadow-md'
 
 const DTI_TEXT: Record<string, string> = {
-  green: 'text-green-600',
-  orange: 'text-orange-600',
-  red: 'text-red-600',
-  slate: 'text-slate-900',
+  green: 'text-green-600 dark:text-green-300',
+  orange: 'text-orange-600 dark:text-orange-300',
+  red: 'text-red-600 dark:text-red-300',
+  slate: 'text-slate-900 dark:text-slate-100',
 }
 const DTI_BADGE: Record<string, string> = {
-  green: 'bg-green-100 text-green-700',
-  orange: 'bg-orange-100 text-orange-700',
-  red: 'bg-red-100 text-red-700',
-  slate: 'bg-surface-100 text-slate-500',
+  green: 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300',
+  orange: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300',
+  red: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300',
+  slate: 'bg-surface-100 text-slate-500 dark:bg-surface-700 dark:text-slate-400',
 }
 
 function scoreColor(score: number): string {
@@ -210,19 +211,18 @@ export default function DashboardPage() {
   const storeBudget = useDebtStore((s) => s.monthlyBudget)
   const monthlyIncome = useDebtStore((s) => s.monthlyIncome)
   const setMonthlyIncome = useDebtStore((s) => s.setMonthlyIncome)
+  const showTips = useDebtStore((s) => s.showTips)
+  const showHealthScore = useDebtStore((s) => s.showHealthScore)
   const removeDebt = useDebtStore((s) => s.removeDebt)
+  const displayName = useUserStore((s) => s.displayName)
+  const email = useUserStore((s) => s.email)
   const fmt = useCurrencyFormatter()
 
-  const [dark, setDark] = useState(
-    () =>
-      typeof localStorage !== 'undefined' &&
-      localStorage.getItem('theme') === 'dark',
-  )
-  useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', dark)
-    localStorage.setItem('theme', dark ? 'dark' : 'light')
-  }, [dark])
+  const userName = displayName || email || 'User'
+  const userInitial = (displayName || email || 'U').charAt(0).toUpperCase()
+
+  const dark = useDebtStore((s) => s.darkMode)
+  const toggleDarkMode = useDebtStore((s) => s.toggleDarkMode)
 
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput] = useState(
@@ -246,8 +246,8 @@ export default function DashboardPage() {
   if (debts.length === 0) {
     return (
       <section className="card">
-        <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           No debts yet. Add your debts to see your payoff dashboard.
         </p>
         <Link to="/debts" className="btn-primary mt-4 inline-block">
@@ -342,8 +342,8 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Overview of your debt and payoff progress
           </p>
         </div>
@@ -351,25 +351,25 @@ export default function DashboardPage() {
           <button
             type="button"
             aria-label="Toggle dark mode"
-            onClick={() => setDark((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-surface-100 hover:text-slate-700"
+            onClick={toggleDarkMode}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
           >
             {dark ? <MoonIcon /> : <SunIcon />}
           </button>
           <button
             type="button"
             aria-label="Notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-surface-100 hover:text-slate-700"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
           >
             <BellIcon />
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
           </button>
           <div className="flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
-              U
+              {userInitial}
             </span>
-            <span className="hidden text-sm font-medium text-slate-700 sm:inline">
-              User
+            <span className="hidden text-sm font-medium text-slate-700 dark:text-slate-300 sm:inline">
+              {userName}
             </span>
           </div>
           <Link to="/debts" className="btn-primary whitespace-nowrap">
@@ -384,20 +384,20 @@ export default function DashboardPage() {
           label="Total Debt"
           value={fmt(totalDebt)}
           icon={Wallet}
-          tint="bg-indigo-50 text-indigo-600"
+          tint="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300"
         />
         <SummaryCard
           label="Monthly Payment"
           value={fmt(totalMinimums)}
           icon={CalendarDays}
-          tint="bg-blue-50 text-blue-600"
+          tint="bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300"
         />
         <SummaryCard
           label="Total Interest (All Debts)"
           value={minimumsOnly.unaffordable ? '—' : fmt(minimumsOnly.totalInterestPaid)}
           sub="If paying minimums only"
           icon={Percent}
-          tint="bg-orange-50 text-orange-600"
+          tint="bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300"
         />
         <SummaryCard
           label="Debt Free In (Best Strategy)"
@@ -406,19 +406,20 @@ export default function DashboardPage() {
           }
           sub="Using Avalanche"
           icon={CalendarCheck}
-          tint="bg-green-50 text-green-600"
+          tint="bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-300"
         />
       </div>
 
       {/* Financial health */}
+      {showHealthScore && (
       <section className={CARD}>
-        <h2 className="mb-4 text-lg font-medium text-slate-900">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           Financial Health
         </h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           {/* Monthly income (editable) */}
           <div>
-            <p className="text-sm text-slate-500">Monthly income</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Monthly income</p>
             {editingIncome ? (
               <div className="mt-1 flex items-center gap-2">
                 <input
@@ -443,13 +444,13 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-2xl font-semibold text-slate-900">
+                <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
                   {monthlyIncome > 0 ? fmt(monthlyIncome) : 'Not set'}
                 </span>
                 <button
                   type="button"
                   aria-label="Edit monthly income"
-                  className="rounded-md p-1 text-slate-400 hover:bg-surface-100 hover:text-slate-700"
+                  className="rounded-md p-1 text-slate-400 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
                   onClick={() => {
                     setIncomeInput(monthlyIncome ? String(monthlyIncome) : '')
                     setEditingIncome(true)
@@ -463,9 +464,9 @@ export default function DashboardPage() {
 
           {/* Debt-to-income */}
           <div>
-            <p className="text-sm text-slate-500">Debt-to-Income ratio</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Debt-to-Income ratio</p>
             {dti === null ? (
-              <p className="mt-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm text-slate-400 dark:text-slate-400">
                 Add your income to calculate
               </p>
             ) : (
@@ -489,21 +490,21 @@ export default function DashboardPage() {
 
           {/* Health score */}
           <div>
-            <p className="text-sm text-slate-500">Health score</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Health score</p>
             {health === null ? (
-              <p className="mt-2 text-sm text-slate-400">
+              <p className="mt-2 text-sm text-slate-400 dark:text-slate-400">
                 Add your income to calculate
               </p>
             ) : (
               <>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
+                <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
                   {health.score}
-                  <span className="text-base font-normal text-slate-400">
+                  <span className="text-base font-normal text-slate-400 dark:text-slate-400">
                     {' '}
                     / 100
                   </span>
                 </p>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-100">
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-100 dark:bg-surface-700">
                   <div
                     className={cn('h-full rounded-full', scoreColor(health.score))}
                     style={{ width: `${health.score}%` }}
@@ -514,15 +515,16 @@ export default function DashboardPage() {
           </div>
         </div>
         {health && (
-          <p className="mt-4 text-sm text-slate-600">{health.drag}</p>
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{health.drag}</p>
         )}
       </section>
+      )}
 
       {/* Debts table + strategy comparison — 60/40 */}
       <div className="grid gap-6 lg:grid-cols-5">
         <section className={cn(CARD, 'lg:col-span-3')}>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-medium text-slate-900">Your Debts</h2>
+            <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">Your Debts</h2>
             <Link to="/debts" className="btn-ghost text-sm">
               + Add Debt
             </Link>
@@ -531,14 +533,14 @@ export default function DashboardPage() {
           {/* Overall progress across all debts */}
           <div className="mb-5">
             <div className="flex items-baseline justify-between text-sm">
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-300">
                 {overallPct}% debt-free
               </span>
-              <span className="text-slate-500">
+              <span className="text-slate-500 dark:text-slate-400">
                 {paidCount}/{debts.length} debts paid · {fmt(totalPaid)} paid off
               </span>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-100">
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-100 dark:bg-surface-700">
               <div
                 className="h-full rounded-full bg-green-500 transition-all duration-300"
                 style={{ width: `${overallPct}%` }}
@@ -549,7 +551,7 @@ export default function DashboardPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-surface-200 text-slate-500">
+                <tr className="border-b border-surface-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4 font-medium">Debt</th>
                   <th className="py-2 pr-4 font-medium">Balance</th>
                   <th className="py-2 pr-4 font-medium">Interest Rate</th>
@@ -571,46 +573,46 @@ export default function DashboardPage() {
                   return (
                     <tr
                       key={d.id}
-                      className="border-b border-surface-100 last:border-0"
+                      className="border-b border-surface-100 dark:border-slate-700 last:border-0"
                     >
                       <td className="min-w-48 py-3 pr-4">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-100 text-slate-500">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-700 text-slate-500 dark:text-slate-400">
                             <DebtIcon title={d.title} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <span className="font-medium text-slate-900">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">
                               {d.title}
                             </span>
                             <div className="mt-1.5 flex items-center gap-2">
-                              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-100">
+                              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-100 dark:bg-surface-700">
                                 <div
                                   className="h-full rounded-full bg-green-500"
                                   style={{ width: `${pctPaid}%` }}
                                 />
                               </div>
-                              <span className="text-xs text-slate-400">
+                              <span className="text-xs text-slate-400 dark:text-slate-400">
                                 {pctPaid}% paid
                               </span>
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {fmt(d.balance)}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {formatPercent(d.interestRate)}
                       </td>
-                      <td className="py-3 pr-4 text-slate-700">
+                      <td className="py-3 pr-4 text-slate-700 dark:text-slate-300">
                         {fmt(d.monthlyPayment)}
                       </td>
                       <td
                         className={cn(
                           'py-3 pr-4',
                           costly
-                            ? 'font-medium text-orange-600'
-                            : 'text-slate-700',
+                            ? 'font-medium text-orange-600 dark:text-orange-300'
+                            : 'text-slate-700 dark:text-slate-300',
                         )}
                       >
                         {trueCost === null ? '—' : fmt(trueCost)}
@@ -626,10 +628,10 @@ export default function DashboardPage() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t border-surface-200 font-medium text-slate-900">
+                <tr className="border-t border-surface-200 dark:border-slate-700 font-medium text-slate-900 dark:text-slate-100">
                   <td className="py-3 pr-4">Total</td>
                   <td className="py-3 pr-4">{fmt(totalDebt)}</td>
-                  <td className="py-3 pr-4 text-slate-400">—</td>
+                  <td className="py-3 pr-4 text-slate-400 dark:text-slate-400">—</td>
                   <td className="py-3 pr-4">{fmt(totalMinimums)}</td>
                   <td className="py-3 pr-4">
                     {totalTrueCost === null ? '—' : fmt(totalTrueCost)}
@@ -642,7 +644,7 @@ export default function DashboardPage() {
         </section>
 
         <section className={cn(CARD, 'lg:col-span-2')}>
-          <h2 className="mb-4 text-lg font-medium text-slate-900">
+          <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
             Strategy Comparison
           </h2>
           {hasBudget ? (
@@ -652,24 +654,24 @@ export default function DashboardPage() {
                 <div className="font-medium text-primary-600">Snowball</div>
                 <div className="font-medium text-green-600">Avalanche</div>
 
-                <div className="text-slate-500">Time to debt free</div>
-                <div className="text-slate-900">
+                <div className="text-slate-500 dark:text-slate-400">Time to debt free</div>
+                <div className="text-slate-900 dark:text-slate-100">
                   {formatMonthsWithDate(snowball.monthsToPayoff)}
                 </div>
-                <div className="text-slate-900">
+                <div className="text-slate-900 dark:text-slate-100">
                   {formatMonthsWithDate(avalanche.monthsToPayoff)}
                 </div>
 
-                <div className="text-slate-500">Total interest paid</div>
-                <div className="text-slate-900">
+                <div className="text-slate-500 dark:text-slate-400">Total interest paid</div>
+                <div className="text-slate-900 dark:text-slate-100">
                   {fmt(snowball.totalInterestPaid)}
                 </div>
-                <div className="text-slate-900">
+                <div className="text-slate-900 dark:text-slate-100">
                   {fmt(avalanche.totalInterestPaid)}
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-green-50 p-3 text-sm">
-                <span className="font-medium text-green-700">
+              <div className="flex items-center justify-between rounded-lg bg-green-50 dark:bg-green-500/10 p-3 text-sm">
+                <span className="font-medium text-green-700 dark:text-green-300">
                   Interest saved: {fmt(interestSaved)}
                 </span>
                 <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-semibold text-white">
@@ -684,9 +686,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Insights */}
-      {insights.length > 0 && (
+      {showTips && insights.length > 0 && (
         <section className={CARD}>
-          <h2 className="mb-4 text-lg font-medium text-slate-900">Insights</h2>
+          <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">Insights</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {insights.map((ins, i) => (
               <InsightCard key={i} tone={ins.tone} text={ins.text} />
@@ -698,7 +700,7 @@ export default function DashboardPage() {
       {/* Charts — 40/60 */}
       <div className="grid gap-6 lg:grid-cols-5">
         <section className={cn(CARD, 'lg:col-span-2')}>
-          <h2 className="mb-4 text-lg font-medium text-slate-900">
+          <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
             Debt Breakdown
           </h2>
           <div className="relative h-56">
@@ -722,8 +724,8 @@ export default function DashboardPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xs text-slate-500">Total</span>
-              <span className="text-lg font-semibold text-slate-900">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total</span>
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {fmt(totalDebt)}
               </span>
             </div>
@@ -736,14 +738,14 @@ export default function DashboardPage() {
                   className="h-3 w-3 shrink-0 rounded-full"
                   style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
                 />
-                <span className="truncate text-slate-600">{d.name}</span>
+                <span className="truncate text-slate-600 dark:text-slate-300">{d.name}</span>
               </li>
             ))}
           </ul>
         </section>
 
         <section className={cn(CARD, 'lg:col-span-3')}>
-          <h2 className="mb-4 text-lg font-medium text-slate-900">
+          <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
             Total Debt Over Time
           </h2>
           {hasBudget ? (
@@ -793,7 +795,7 @@ export default function DashboardPage() {
             <BudgetPrompt threshold={fmt(totalMinimums)} feature="the payoff timeline" />
           )}
           {hasBudget && linesIdentical && (
-            <p className="mt-2 text-xs text-amber-600">
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
               Both strategies follow the same path here. Increase your budget to
               see strategies diverge.
             </p>
@@ -803,7 +805,7 @@ export default function DashboardPage() {
 
       {/* Avalanche payoff order */}
       <section className={CARD}>
-        <h2 className="mb-4 text-lg font-medium text-slate-900">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
           Avalanche Payoff Order
         </h2>
         {hasBudget ? (
@@ -811,13 +813,13 @@ export default function DashboardPage() {
             {avalanche.payoffOrder.map((p) => (
               <li
                 key={p.debtId}
-                className="flex items-center gap-3 rounded-lg bg-surface-50 px-3 py-2"
+                className="flex items-center gap-3 rounded-lg bg-surface-50 dark:bg-surface-700 px-3 py-2"
               >
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
                   {p.payoffOrder}
                 </span>
-                <span className="font-medium text-slate-900">{p.title}</span>
-                <span className="ml-auto text-sm text-slate-500">
+                <span className="font-medium text-slate-900 dark:text-slate-100">{p.title}</span>
+                <span className="ml-auto text-sm text-slate-500 dark:text-slate-400">
                   Paid off in month {p.monthsToPayoff} (
                   {monthYearFromNow(p.monthsToPayoff)})
                 </span>
@@ -848,9 +850,9 @@ function SummaryCard({
   return (
     <div className={cn(CARD, 'flex items-start justify-between')}>
       <div>
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
-        {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+        {sub && <p className="mt-1 text-xs text-slate-400 dark:text-slate-400">{sub}</p>}
       </div>
       <span
         className={cn('flex h-10 w-10 items-center justify-center rounded-lg', tint)}
@@ -862,16 +864,16 @@ function SummaryCard({
 }
 
 const INSIGHT_TONES: Record<Insight['tone'], string> = {
-  positive: 'border-green-500 bg-green-50',
-  warning: 'border-orange-500 bg-orange-50',
-  info: 'border-indigo-500 bg-indigo-50',
+  positive: 'border-green-500 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10',
+  warning: 'border-orange-500 bg-orange-50 dark:border-orange-500/30 dark:bg-orange-500/10',
+  info: 'border-indigo-500 bg-indigo-50 dark:border-indigo-500/30 dark:bg-indigo-500/10',
 }
 
 function InsightCard({ tone, text }: Insight) {
   return (
     <div
       className={cn(
-        'rounded-lg border-l-4 p-4 text-sm text-slate-700',
+        'rounded-lg border-l-4 p-4 text-sm text-slate-700 dark:text-slate-300',
         INSIGHT_TONES[tone],
       )}
     >
@@ -889,7 +891,7 @@ function BudgetPrompt({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-10 text-center">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         Set a monthly budget above {threshold} to see {feature}.
       </p>
       <Link to="/debts" className="btn-primary mt-3">
@@ -914,7 +916,7 @@ function RowMenu({
         type="button"
         aria-label="Debt actions"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-surface-100 hover:text-slate-700"
+        className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-slate-700 dark:hover:text-slate-300"
       >
         ⋮
       </button>
@@ -927,10 +929,10 @@ function RowMenu({
             className="fixed inset-0 z-10 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 top-9 z-20 w-32 overflow-hidden rounded-lg border border-surface-200 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 top-9 z-20 w-32 overflow-hidden rounded-lg border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 py-1 shadow-lg">
             <button
               type="button"
-              className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-surface-100"
+              className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-700"
               onClick={() => {
                 setOpen(false)
                 onEdit()
@@ -940,7 +942,7 @@ function RowMenu({
             </button>
             <button
               type="button"
-              className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-red-50"
+              className="block w-full px-3 py-1.5 text-left text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
               onClick={() => {
                 setOpen(false)
                 onDelete()

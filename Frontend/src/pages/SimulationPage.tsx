@@ -20,12 +20,17 @@ import {
 import { useDebtStore } from '@/store/debtStore'
 import { runSnowball, runAvalanche } from '@/utils/simulate'
 import { callSimulationApi } from '@/services/simulationService'
+import { savePlan } from '@/services/planService'
 import { formatMonthsWithDate, useCurrencyFormatter } from '@/utils/format'
 import { cn } from '@/utils/cn'
+import type { Debt } from '@/types/debt'
 import type { SimulationResult } from '@/types/simulation'
 
 const SNOWBALL_COLOR = '#6366f1' // indigo
 const AVALANCHE_COLOR = '#22c55e' // green
+
+// Per-debt accent colors (matches the DebtsPage table ordering).
+const DEBT_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899']
 
 /** Projected debt-free month as "August 2028", counted from today. */
 function debtFreeDate(months: number): string {
@@ -33,6 +38,14 @@ function debtFreeDate(months: number): string {
   const d = new Date()
   d.setMonth(d.getMonth() + months)
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+/** Payoff cell label as "Month 6 (Dec 2026)", counted from today. */
+function payoffMonthLabel(months: number): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() + months)
+  const when = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  return `Month ${months} (${when})`
 }
 
 type Tab = 'overview' | 'timeline' | 'details'
@@ -51,13 +64,21 @@ interface SimulationState {
 export default function SimulationPage() {
   const location = useLocation()
   const debts = useDebtStore((s) => s.debts)
+  const storeBudget = useDebtStore((s) => s.monthlyBudget)
+  const lastSnowballResult = useDebtStore((s) => s.lastSnowballResult)
+  const lastAvalancheResult = useDebtStore((s) => s.lastAvalancheResult)
   const formatCurrency = useCurrencyFormatter()
   const [tab, setTab] = useState<Tab>('overview')
   const [extra, setExtra] = useState(0)
   const [lumpSum, setLumpSum] = useState(0)
   const [lumpTarget, setLumpTarget] = useState('auto')
   const state = location.state as SimulationState | null
-  const monthlyBudget = state?.monthlyBudget ?? 0
+
+  // Use the fresh run passed via router state; otherwise fall back to the last
+  // persisted simulation so navigating away and back still shows results.
+  const sourceSnowball = state?.snowball ?? lastSnowballResult
+  const sourceAvalanche = state?.avalanche ?? lastAvalancheResult
+  const monthlyBudget = state?.monthlyBudget ?? storeBudget
 
   // Baseline (no extra) and the live "what-if" results (with extra), both
   // recomputed from the current debts so moving the slider updates everything.
@@ -88,6 +109,30 @@ export default function SimulationPage() {
     }
   }, [debts, adjustedBudget])
 
+  // Save-plan UI state.
+  const [showSave, setShowSave] = useState(false)
+  const [planName, setPlanName] = useState('')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle',
+  )
+
+  const handleSavePlan = async () => {
+    const name = planName.trim()
+    if (!name || !results) return
+    setSaveState('saving')
+    try {
+      await savePlan(name, debts, adjustedBudget, {
+        snowball: results.snowball,
+        avalanche: results.avalanche,
+      })
+      setSaveState('saved')
+      setShowSave(false)
+      setPlanName('')
+    } catch {
+      setSaveState('error')
+    }
+  }
+
   // Lump sum: which debt receives it ("auto" = highest interest rate), and the
   // Avalanche result after reducing that debt's balance by the lump sum.
   const lumpTargetId = useMemo(() => {
@@ -107,14 +152,14 @@ export default function SimulationPage() {
     return runAvalanche({ debts: lumpDebts, monthlyBudget: adjustedBudget })
   }, [debts, lumpTargetId, lumpSum, adjustedBudget])
 
-  // Router state does not survive a reload or a direct visit.
-  if (!state?.snowball || !state?.avalanche) {
+  // No fresh run and nothing persisted — nothing to show.
+  if (!sourceSnowball || !sourceAvalanche) {
     return (
       <section className="card">
-        <h1 className="text-xl font-semibold text-slate-900">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
           No simulation to show
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Run a simulation from the debts page to see your results here.
         </p>
         <Link to="/debts" className="btn-primary mt-4 inline-block">
@@ -140,12 +185,12 @@ export default function SimulationPage() {
   if (unaffordable) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-slate-900">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
           Simulation results
         </h1>
         <section className="card border-amber-200 bg-amber-50">
-          <h2 className="text-lg font-medium text-amber-900">Budget too low</h2>
-          <p className="mt-1 text-sm text-amber-800">
+          <h2 className="text-lg font-medium text-amber-900 dark:text-amber-200">Budget too low</h2>
+          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
             Your monthly budget doesn't cover the total of all minimum payments,
             so these debts can't be paid off. Increase the budget and run the
             simulation again.
@@ -201,26 +246,89 @@ export default function SimulationPage() {
   const balanceById: Record<string, number> = {}
   for (const d of debts) balanceById[d.id] = d.balance
 
+  // Budget breakdown: minimum payments vs the extra that's funnelled to the
+  // priority debt. Based on the committed monthly budget (not the what-if slider).
+  const totalMinimums = debts.reduce((sum, d) => sum + d.monthlyPayment, 0)
+  const extraPayment = Math.max(0, monthlyBudget - totalMinimums)
+  const minimumsPct =
+    monthlyBudget > 0 ? (totalMinimums / monthlyBudget) * 100 : 0
+  const extraPct = monthlyBudget > 0 ? (extraPayment / monthlyBudget) * 100 : 0
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
             Simulation results
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Monthly budget: {formatCurrency(monthlyBudget)}
           </p>
         </div>
-        <Link to="/debts" className="btn-ghost">
-          ← Edit debts
-        </Link>
+        <div className="flex items-center gap-2">
+          {saveState === 'saved' && (
+            <span className="text-sm font-medium text-green-600">
+              Plan saved ✓
+            </span>
+          )}
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setShowSave((v) => !v)
+              setSaveState('idle')
+            }}
+          >
+            Save this plan
+          </button>
+          <Link to="/debts" className="btn-ghost">
+            ← Edit debts
+          </Link>
+        </div>
       </header>
+
+      {showSave && (
+        <section className="card flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            type="text"
+            className="input sm:flex-1"
+            placeholder="Plan name (e.g. Aggressive payoff)"
+            value={planName}
+            onChange={(e) => setPlanName(e.target.value)}
+            autoFocus
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!planName.trim() || saveState === 'saving'}
+              onClick={handleSavePlan}
+            >
+              {saveState === 'saving' ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setShowSave(false)
+                setPlanName('')
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+          {saveState === 'error' && (
+            <span className="text-sm text-red-600">
+              Could not save. Please try again.
+            </span>
+          )}
+        </section>
+      )}
 
       {/* What-If extra payment */}
       <section className="card">
         <div className="flex items-center justify-between">
-          <label htmlFor="extra" className="text-sm font-medium text-slate-700">
+          <label htmlFor="extra" className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Extra monthly payment
           </label>
           <span className="text-sm font-semibold text-primary-600">
@@ -240,19 +348,19 @@ export default function SimulationPage() {
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Callout
             icon={Clock}
-            tint="bg-indigo-50 text-indigo-600"
+            tint="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-200"
             label="You'll be debt free"
             value={`${monthsSooner} ${monthsSooner === 1 ? 'month' : 'months'} sooner`}
           />
           <Callout
             icon={PiggyBank}
-            tint="bg-green-50 text-green-600"
+            tint="bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-200"
             label="You'll save"
             value={`${formatCurrency(interestSavedByExtra)} in interest`}
           />
           <Callout
             icon={CalendarCheck}
-            tint="bg-blue-50 text-blue-600"
+            tint="bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-200"
             label="Debt free by"
             value={debtFreeBy}
           />
@@ -262,7 +370,7 @@ export default function SimulationPage() {
       {/* Lump sum calculator */}
       <section className="card">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-slate-700">
+          <h2 className="text-sm font-medium text-slate-700 dark:text-slate-300">
             One-time lump sum payment
           </h2>
           <span className="text-sm font-semibold text-primary-600">
@@ -295,26 +403,26 @@ export default function SimulationPage() {
           </select>
         </div>
         {lumpSum > 0 && lumpTarget === 'auto' && lumpTargetTitle && (
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             Applied to {lumpTargetTitle} (highest interest rate)
           </p>
         )}
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Callout
             icon={Clock}
-            tint="bg-indigo-50 text-indigo-600"
+            tint="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-200"
             label="Months saved"
             value={`${lumpMonthsSaved} ${lumpMonthsSaved === 1 ? 'month' : 'months'}`}
           />
           <Callout
             icon={PiggyBank}
-            tint="bg-green-50 text-green-600"
+            tint="bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-200"
             label="Interest saved"
             value={formatCurrency(lumpInterestSaved)}
           />
           <Callout
             icon={CalendarCheck}
-            tint="bg-blue-50 text-blue-600"
+            tint="bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-200"
             label="New debt free date"
             value={lumpDate}
           />
@@ -322,13 +430,13 @@ export default function SimulationPage() {
       </section>
 
       {/* Winner banner */}
-      <section className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-5">
+      <section className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-5 dark:border-green-500/30 dark:bg-green-500/10">
         <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" />
         <div>
-          <h2 className="text-lg font-semibold text-green-900">
+          <h2 className="text-lg font-semibold text-green-900 dark:text-green-200">
             {winnerName} is your best strategy
           </h2>
-          <p className="mt-0.5 text-sm text-green-800">
+          <p className="mt-0.5 text-sm text-green-800 dark:text-green-200">
             {hasEdge
               ? `Saves ${monthsSaved} ${
                   monthsSaved === 1 ? 'month' : 'months'
@@ -340,8 +448,99 @@ export default function SimulationPage() {
         </div>
       </section>
 
+      {/* Monthly payment breakdown */}
+      <section className="card">
+        <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
+          Monthly payment breakdown
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <BudgetCard
+            label="Minimum Payments"
+            value={formatCurrency(totalMinimums)}
+            subtitle="Required every month"
+            valueClass="text-slate-900 dark:text-slate-100"
+          />
+          <BudgetCard
+            label="Extra Payment"
+            value={formatCurrency(extraPayment)}
+            subtitle="Funneled to priority debt"
+            valueClass={extraPayment > 0 ? 'text-green-600' : 'text-amber-600'}
+          />
+          <BudgetCard
+            label="Total Monthly Budget"
+            value={formatCurrency(monthlyBudget)}
+            subtitle="Your committed amount"
+            valueClass="text-primary-600"
+          />
+        </div>
+
+        {/* Stacked bar: minimums (slate) vs extra (indigo) */}
+        <div className="mt-5 flex h-8 w-full overflow-hidden rounded-lg bg-surface-100 dark:bg-surface-700">
+          {minimumsPct > 0 && (
+            <div
+              className="flex items-center justify-center bg-slate-400 text-xs font-medium text-white"
+              style={{ width: `${minimumsPct}%` }}
+            >
+              {minimumsPct >= 12 && `Minimums ${Math.round(minimumsPct)}%`}
+            </div>
+          )}
+          {extraPct > 0 && (
+            <div
+              className="flex items-center justify-center bg-primary-500 text-xs font-medium text-white"
+              style={{ width: `${extraPct}%` }}
+            >
+              {extraPct >= 12 && `Extra ${Math.round(extraPct)}%`}
+            </div>
+          )}
+        </div>
+        <div className="mt-2 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-slate-400" />
+            Minimum payments
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-primary-500" />
+            Extra payment
+          </span>
+        </div>
+      </section>
+
+      {/* Per-debt breakdown by strategy */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <StrategyBreakdown
+          title="Avalanche Strategy"
+          subtitle="Highest interest rate first"
+          accentClass="text-green-700"
+          bannerClass="border border-green-100 bg-green-50 text-green-900 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-200"
+          rowHighlightClass="bg-green-50/60 dark:bg-green-500/10"
+          priorityBorderColor="#16a34a"
+          badgeClass="bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-200"
+          bannerVariant="rate"
+          result={avalanche}
+          debts={debts}
+          extraPayment={extraPayment}
+          totalMinimums={totalMinimums}
+          monthlyBudget={monthlyBudget}
+        />
+        <StrategyBreakdown
+          title="Snowball Strategy"
+          subtitle="Smallest balance first"
+          accentClass="text-primary-700"
+          bannerClass="border border-indigo-100 bg-indigo-50 text-indigo-900 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200"
+          rowHighlightClass="bg-primary-50/60 dark:bg-primary-500/10"
+          priorityBorderColor="#4f46e5"
+          badgeClass="bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-200"
+          bannerVariant="balance"
+          result={snowball}
+          debts={debts}
+          extraPayment={extraPayment}
+          totalMinimums={totalMinimums}
+          monthlyBudget={monthlyBudget}
+        />
+      </div>
+
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-surface-200">
+      <div className="flex gap-1 border-b border-surface-200 dark:border-slate-700">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -351,7 +550,7 @@ export default function SimulationPage() {
               '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
               tab === t.key
                 ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700',
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200',
             )}
           >
             {t.label}
@@ -451,8 +650,8 @@ function StrategySummary({
   const formatCurrency = useCurrencyFormatter()
   return (
     <section className="card">
-      <h2 className="text-lg font-medium text-slate-900">{label}</h2>
-      <p className="text-sm text-slate-500">{sub}</p>
+      <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">{label}</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{sub}</p>
       <dl className="mt-4 space-y-3">
         <Metric
           term="Total interest paid"
@@ -471,6 +670,209 @@ function StrategySummary({
   )
 }
 
+function BudgetCard({
+  label,
+  value,
+  subtitle,
+  valueClass,
+}: {
+  label: string
+  value: string
+  subtitle: string
+  valueClass: string
+}) {
+  return (
+    <div className="rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-slate-700 dark:bg-surface-700">
+      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={cn('mt-1 text-2xl font-semibold', valueClass)}>{value}</p>
+      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+    </div>
+  )
+}
+
+function StrategyBreakdown({
+  title,
+  subtitle,
+  accentClass,
+  bannerClass,
+  rowHighlightClass,
+  priorityBorderColor,
+  badgeClass,
+  bannerVariant,
+  result,
+  debts,
+  extraPayment,
+  totalMinimums,
+  monthlyBudget,
+}: {
+  title: string
+  subtitle: string
+  accentClass: string
+  bannerClass: string
+  rowHighlightClass: string
+  priorityBorderColor: string
+  badgeClass: string
+  bannerVariant: 'rate' | 'balance'
+  result: SimulationResult
+  debts: Debt[]
+  extraPayment: number
+  totalMinimums: number
+  monthlyBudget: number
+}) {
+  const formatCurrency = useCurrencyFormatter()
+
+  // The extra budget is funnelled entirely to the priority debt (first in this
+  // strategy's payoff order); everyone else pays only their minimum.
+  const payoffMonth = new Map(
+    result.payoffOrder.map((p) => [p.debtId, p.monthsToPayoff]),
+  )
+
+  const active = debts.filter((d) => d.balance > 0)
+  // Priority order the extra cascades through, matching the engine's monthly
+  // funnel: Avalanche → highest rate first, Snowball → smallest balance first.
+  const priorityOrder = [...active].sort((a, b) =>
+    bannerVariant === 'rate'
+      ? b.interestRate - a.interestRate
+      : a.balance - b.balance,
+  )
+  // Cascade the extra budget down the priority list, capping each debt at the
+  // balance still owed after its minimum; leftover rolls to the next debt.
+  const extraByDebt = new Map<string, number>()
+  let remainingExtra = extraPayment
+  for (const d of priorityOrder) {
+    if (remainingExtra <= 0) break
+    const minPaid = Math.min(d.monthlyPayment, d.balance)
+    const room = Math.max(0, d.balance - minPaid)
+    const applied = Math.min(remainingExtra, room)
+    if (applied > 0) {
+      extraByDebt.set(d.id, applied)
+      remainingExtra -= applied
+    }
+  }
+  const appliedExtra = extraPayment - remainingExtra
+  const priorityId = priorityOrder.find((d) => extraByDebt.has(d.id))?.id ?? null
+  const priorityDebt = debts.find((d) => d.id === priorityId) ?? null
+
+  const rows = debts
+    .map((d, i) => ({ debt: d, color: DEBT_COLORS[i % DEBT_COLORS.length] }))
+    .filter(({ debt }) => debt.balance > 0)
+    .map(({ debt, color }) => {
+      const extra = extraByDebt.get(debt.id) ?? 0
+      return {
+        id: debt.id,
+        name: debt.title,
+        color,
+        minimum: debt.monthlyPayment,
+        extra,
+        total: debt.monthlyPayment + extra,
+        month: payoffMonth.get(debt.id) ?? null,
+      }
+    })
+
+  const bannerDetail = priorityDebt
+    ? bannerVariant === 'rate'
+      ? `${priorityDebt.interestRate}% APR`
+      : `${formatCurrency(priorityDebt.balance)} balance`
+    : ''
+
+  return (
+    <section className="card">
+      <h2 className={cn('text-lg font-semibold', accentClass)}>{title}</h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+
+      {priorityDebt && extraPayment > 0 && (
+        <div className={cn('mt-4 rounded-lg px-4 py-3 text-sm', bannerClass)}>
+          💡 Extra {formatCurrency(extraPayment)} concentrated on{' '}
+          {priorityDebt.title} ({bannerDetail})
+        </div>
+      )}
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-surface-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              <th className="py-2 pr-4 font-medium">Debt</th>
+              <th className="py-2 pr-4 font-medium text-right">Minimum</th>
+              <th className="py-2 pr-4 font-medium text-right">Extra</th>
+              <th className="py-2 pr-4 font-medium text-right">Total monthly</th>
+              <th className="py-2 pr-4 font-medium text-right">Payoff date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const isPriority = row.id === priorityId && extraPayment > 0
+              return (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    'border-b border-surface-100 last:border-0 dark:border-slate-700',
+                    isPriority && rowHighlightClass,
+                  )}
+                >
+                  <td
+                    className="border-l-4 py-3 pl-3 pr-4 font-medium text-slate-900 dark:text-slate-100"
+                    style={{
+                      borderLeftColor: isPriority
+                        ? priorityBorderColor
+                        : row.color,
+                    }}
+                  >
+                    {row.name}
+                    {isPriority && (
+                      <span
+                        className={cn(
+                          'ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                          badgeClass,
+                        )}
+                      >
+                        Focus
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 pr-4 text-right text-slate-700 dark:text-slate-300">
+                    {formatCurrency(row.minimum)}
+                  </td>
+                  <td
+                    className={cn(
+                      'py-3 pr-4 text-right',
+                      row.extra > 0
+                        ? 'font-medium text-slate-900 dark:text-slate-100'
+                        : 'text-slate-400 dark:text-slate-400',
+                    )}
+                  >
+                    {formatCurrency(row.extra)}
+                  </td>
+                  <td className="py-3 pr-4 text-right font-medium text-slate-900 dark:text-slate-100">
+                    {formatCurrency(row.total)}
+                  </td>
+                  <td className="py-3 pr-4 text-right text-slate-700 dark:text-slate-300">
+                    {row.month != null ? payoffMonthLabel(row.month) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-surface-200 font-semibold text-slate-900 dark:border-slate-700 dark:text-slate-100">
+              <td className="py-3 pr-4">Total</td>
+              <td className="py-3 pr-4 text-right">
+                {formatCurrency(totalMinimums)}
+              </td>
+              <td className="py-3 pr-4 text-right">
+                {formatCurrency(appliedExtra)}
+              </td>
+              <td className="py-3 pr-4 text-right">
+                {formatCurrency(monthlyBudget)}
+              </td>
+              <td className="py-3 pr-4" />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 function Metric({
   term,
   value,
@@ -484,11 +886,11 @@ function Metric({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <dt className="text-sm text-slate-600">{term}</dt>
+      <dt className="text-sm text-slate-600 dark:text-slate-300">{term}</dt>
       <dd className="flex items-center gap-2">
-        <span className="font-semibold text-slate-900">{value}</span>
+        <span className="font-semibold text-slate-900 dark:text-slate-100">{value}</span>
         {win && (
-          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-500/20 dark:text-green-200">
             {winLabel}
           </span>
         )}
@@ -509,7 +911,7 @@ function Callout({
   value: string
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-surface-50 p-3">
+    <div className="flex items-center gap-3 rounded-lg bg-surface-50 p-3 dark:bg-surface-700">
       <span
         className={cn(
           'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
@@ -519,8 +921,8 @@ function Callout({
         <Icon className="h-5 w-5" />
       </span>
       <div>
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-sm font-semibold text-slate-900">{value}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{value}</p>
       </div>
     </div>
   )
@@ -543,7 +945,7 @@ function TimelineChart({
 
   return (
     <section className="card">
-      <h2 className="mb-4 text-lg font-medium text-slate-900">
+      <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
         Total Debt Over Time
       </h2>
       <div className="h-72">
@@ -597,26 +999,26 @@ function PayoffOrderCard({
   const formatCurrency = useCurrencyFormatter()
   return (
     <section className="card">
-      <h2 className="mb-4 text-lg font-medium text-slate-900">
+      <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
         {label} — payoff order
       </h2>
       <ol className="space-y-2">
         {result.payoffOrder.map((p) => {
           const totalCost = (balanceById[p.debtId] ?? 0) + p.interestPaid
           return (
-            <li key={p.debtId} className="rounded-lg bg-surface-50 px-3 py-2">
+            <li key={p.debtId} className="rounded-lg bg-surface-50 px-3 py-2 dark:bg-surface-700">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-xs font-semibold text-white">
                     {p.payoffOrder}
                   </span>
-                  <span className="font-medium text-slate-900">{p.title}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{p.title}</span>
                 </span>
-                <span className="text-sm text-slate-600">
+                <span className="text-sm text-slate-600 dark:text-slate-300">
                   {formatMonthsWithDate(p.monthsToPayoff)}
                 </span>
               </div>
-              <p className="mt-1 pl-8 text-xs text-slate-500">
+              <p className="mt-1 pl-8 text-xs text-slate-500 dark:text-slate-400">
                 Total cost: {formatCurrency(totalCost)} (
                 {formatCurrency(p.interestPaid)} in interest)
               </p>
@@ -648,13 +1050,13 @@ function BalanceTable({
 
   return (
     <section className="card">
-      <h2 className="mb-4 text-lg font-medium text-slate-900">
+      <h2 className="mb-4 text-lg font-medium text-slate-900 dark:text-slate-100">
         Remaining balance by month
       </h2>
       <div className="max-h-96 overflow-y-auto">
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 bg-white">
-            <tr className="border-b border-surface-200 text-slate-500">
+          <thead className="sticky top-0 bg-white dark:bg-surface-800">
+            <tr className="border-b border-surface-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <th className="py-2 pr-4 font-medium">Month</th>
               <th className="py-2 pr-4 font-medium">Snowball balance</th>
               <th className="py-2 pr-4 font-medium">Avalanche balance</th>
@@ -664,13 +1066,13 @@ function BalanceTable({
             {rows.map((r) => (
               <tr
                 key={r.month}
-                className="border-b border-surface-100 last:border-0"
+                className="border-b border-surface-100 last:border-0 dark:border-slate-700"
               >
-                <td className="py-2 pr-4 text-slate-700">{r.month}</td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">{r.month}</td>
+                <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">
                   {formatCurrency(r.snowball)}
                 </td>
-                <td className="py-2 pr-4 text-slate-700">
+                <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">
                   {formatCurrency(r.avalanche)}
                 </td>
               </tr>

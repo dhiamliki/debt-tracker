@@ -52,16 +52,16 @@ export default function RegisterPage() {
   return (
     <AuthLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
           Create your account 🚀
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Start tracking your path to debt freedom
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
           {error}
         </div>
       )}
@@ -106,7 +106,7 @@ export default function RegisterPage() {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
             >
               {showPassword ? (
                 <EyeOff className="h-5 w-5" />
@@ -145,7 +145,7 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Already have an account?{' '}
         <Link
           to="/login"

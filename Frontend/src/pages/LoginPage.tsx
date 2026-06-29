@@ -74,16 +74,16 @@ export default function LoginPage() {
   return (
     <AuthLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
           Welcome back 👋
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Sign in to continue to DebtTracker
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
           {error}
         </div>
       )}
@@ -128,7 +128,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
             >
               {showPassword ? (
                 <EyeOff className="h-5 w-5" />
@@ -140,10 +140,10 @@ export default function LoginPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-surface-200 text-primary-600 focus:ring-primary-500"
+              className="h-4 w-4 rounded border-surface-200 dark:border-slate-600 text-primary-600 focus:ring-primary-500"
             />
             Remember me
           </label>
@@ -165,29 +165,29 @@ export default function LoginPage() {
       </form>
 
       <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-surface-200" />
-        <span className="text-xs text-slate-400">or continue with</span>
-        <div className="h-px flex-1 bg-surface-200" />
+        <div className="h-px flex-1 bg-surface-200 dark:bg-slate-700" />
+        <span className="text-xs text-slate-400 dark:text-slate-400">or continue with</span>
+        <div className="h-px flex-1 bg-surface-200 dark:bg-slate-700" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-surface-50"
+          className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors hover:bg-surface-50 dark:hover:bg-surface-700"
         >
           <GoogleIcon />
           Google
         </button>
         <button
           type="button"
-          className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-surface-50"
+          className="flex items-center justify-center gap-2 rounded-lg border border-surface-200 dark:border-slate-700 bg-white dark:bg-surface-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors hover:bg-surface-50 dark:hover:bg-surface-700"
         >
           <GithubIcon />
           GitHub
         </button>
       </div>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Don't have an account?{' '}
         <Link
           to="/register"

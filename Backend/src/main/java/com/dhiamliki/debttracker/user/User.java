@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -28,6 +29,12 @@ public class User {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(name = "monthly_income")
+    private BigDecimal monthlyIncome;
+
+    @Column(name = "display_name")
+    private String displayName;
 
     public User() {
     }
@@ -69,5 +76,21 @@ public class User {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public BigDecimal getMonthlyIncome() {
+        return monthlyIncome;
+    }
+
+    public void setMonthlyIncome(BigDecimal monthlyIncome) {
+        this.monthlyIncome = monthlyIncome;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 }
